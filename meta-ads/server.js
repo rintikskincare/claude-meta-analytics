@@ -11,6 +11,7 @@ app.get('/accounts.html', (req, res) => res.sendFile(path.join(__dirname, 'views
 
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/accounts', require('./routes/accounts'));
+app.use('/api/sync', require('./routes/sync'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/creatives', require('./routes/creatives'));
 app.use('/api/metrics', require('./routes/metrics'));
