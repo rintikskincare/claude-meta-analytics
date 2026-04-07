@@ -5,9 +5,9 @@
   "description": "Creative-level analytics for Meta Ads insights exports.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "seed": "node -e \"require('./services/seed').seed(); console.log('seeded')\""
+    "start": "bash scripts/start.sh",
+    "dev": "bash scripts/dev.sh",
+    "seed": "bash scripts/seed.sh"
   },
   "engines": {
     "node": ">=20"
