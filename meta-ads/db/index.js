@@ -140,6 +140,14 @@ if (!columnExists('creatives', 'updated_at')) {
 if (!columnExists('creatives', 'ad_account_id')) {
   db.exec(`ALTER TABLE creatives ADD COLUMN ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL`);
 }
+for (const [col, ddl] of [
+  ['last_synced_at',   `ALTER TABLE ad_accounts ADD COLUMN last_synced_at TEXT`],
+  ['last_sync_status', `ALTER TABLE ad_accounts ADD COLUMN last_sync_status TEXT`],
+  ['last_sync_error',  `ALTER TABLE ad_accounts ADD COLUMN last_sync_error TEXT`],
+  ['last_sync_window', `ALTER TABLE ad_accounts ADD COLUMN last_sync_window INTEGER`],
+]) {
+  if (!columnExists('ad_accounts', col)) db.exec(ddl);
+}
 
 // Seed default settings on first boot.
 const seedSetting = db.prepare(

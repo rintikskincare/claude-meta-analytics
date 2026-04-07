@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const sync = require('../services/sync');
 
 const router = express.Router();
 
@@ -10,6 +11,8 @@ function serialize(row) {
   // Never leak access_token; expose only whether one is set.
   const { access_token, ...rest } = row;
   return { ...rest, has_token: !!access_token };
+  // (last_synced_at / last_sync_status / last_sync_error / last_sync_window
+  // flow through automatically via ...rest.)
 }
 
 // GET /api/accounts — list all
@@ -65,7 +68,8 @@ router.post('/', express.json(), (req, res) => {
       WHERE id=@id
     `).run(merged);
     const row = db.prepare('SELECT * FROM ad_accounts WHERE id = ?').get(existing.id);
-    return res.status(200).json({ created: false, account: serialize(row) });
+    // Idempotent re-post: do not re-trigger the initial sync.
+    return res.status(200).json({ created: false, account: serialize(row), initialSync: null });
   }
 
   const info = db.prepare(`
@@ -73,7 +77,30 @@ router.post('/', express.json(), (req, res) => {
     VALUES (@external_id, @name, @platform, @currency, @timezone, @access_token, @status)
   `).run(payload);
   const row = db.prepare('SELECT * FROM ad_accounts WHERE id = ?').get(info.lastInsertRowid);
-  res.status(201).json({ created: true, account: serialize(row) });
+
+  // Auto-trigger the initial sync if a token is available (account-specific
+  // or the global Meta token in settings). The runner is async so we return
+  // immediately with metadata the UI can use to show a progress indicator.
+  let initialSync = null;
+  try {
+    initialSync = sync.startSync(row.id);
+  } catch (e) {
+    initialSync = { triggered: false, reason: 'error', error: e.message };
+  }
+
+  res.status(201).json({ created: true, account: serialize(row), initialSync });
+});
+
+// Manual re-sync. Uses the configured window, not the 90-day baseline,
+// unless the account has never been synced.
+router.post('/:id/sync', async (req, res) => {
+  try {
+    const meta = sync.startSync(Number(req.params.id));
+    if (!meta.triggered) return res.status(400).json({ error: meta.reason || 'sync not triggered' });
+    res.json({ ok: true, sync: meta });
+  } catch (e) {
+    res.status(e.message === 'account not found' ? 404 : 500).json({ error: e.message });
+  }
 });
 
 // PUT /api/accounts/:id — partial update. Supports active toggle via
