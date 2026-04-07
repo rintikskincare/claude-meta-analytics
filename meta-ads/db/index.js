@@ -9,50 +9,144 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// ---------------------------------------------------------------------------
+// Schema bootstrap. Idempotent: safe to run on every boot.
+// Every row-bearing table carries created_at / updated_at (ISO8601 UTC), and
+// updated_at is maintained by AFTER UPDATE triggers.
+// ---------------------------------------------------------------------------
 db.exec(`
-CREATE TABLE IF NOT EXISTS creatives (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  hash TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL,
-  format TEXT NOT NULL DEFAULT 'image',
-  thumbnail_url TEXT,
-  headline TEXT,
-  body TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+-- Key/value application settings (e.g. default currency, timezone, API keys).
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS ads (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
-  ad_id_external TEXT NOT NULL UNIQUE,
-  campaign TEXT,
-  adset TEXT
+-- Connected Meta (or other) ad accounts.
+CREATE TABLE IF NOT EXISTS ad_accounts (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  external_id  TEXT NOT NULL UNIQUE,             -- e.g. act_1234567890
+  name         TEXT NOT NULL,
+  platform     TEXT NOT NULL DEFAULT 'meta',
+  currency     TEXT NOT NULL DEFAULT 'USD',
+  timezone     TEXT,
+  access_token TEXT,
+  status       TEXT NOT NULL DEFAULT 'active',   -- active | paused | error
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_ad_accounts_platform ON ad_accounts(platform);
+CREATE INDEX IF NOT EXISTS idx_ad_accounts_status   ON ad_accounts(status);
+
+-- Creatives (deduped by content hash). ad_account_id is nullable so CSV
+-- imports without an account context still work.
+CREATE TABLE IF NOT EXISTS creatives (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL,
+  hash          TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  format        TEXT NOT NULL DEFAULT 'image',   -- image | video | carousel
+  thumbnail_url TEXT,
+  headline      TEXT,
+  body          TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_creatives_account ON creatives(ad_account_id);
+CREATE INDEX IF NOT EXISTS idx_creatives_format  ON creatives(format);
+CREATE INDEX IF NOT EXISTS idx_creatives_name    ON creatives(name);
+
+-- Saved/generated reports (async-friendly: queued -> running -> done/error).
+CREATE TABLE IF NOT EXISTS reports (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  type          TEXT NOT NULL,                   -- leaderboard | fatigue | compare | custom
+  params        TEXT NOT NULL DEFAULT '{}',      -- JSON blob (date range, filters, sort…)
+  status        TEXT NOT NULL DEFAULT 'queued',  -- queued | running | done | error
+  result        TEXT,                            -- JSON blob or NULL
+  error         TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_reports_account ON reports(ad_account_id);
+CREATE INDEX IF NOT EXISTS idx_reports_status  ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_type    ON reports(type);
+
+-- Existing operational tables (kept for importer/metrics services).
+CREATE TABLE IF NOT EXISTS ads (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  creative_id     INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
+  ad_id_external  TEXT NOT NULL UNIQUE,
+  campaign        TEXT,
+  adset           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ads_creative ON ads(creative_id);
 
 CREATE TABLE IF NOT EXISTS insights (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ad_id INTEGER NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
-  date TEXT NOT NULL,
-  spend REAL NOT NULL DEFAULT 0,
-  impressions INTEGER NOT NULL DEFAULT 0,
-  clicks INTEGER NOT NULL DEFAULT 0,
-  purchases INTEGER NOT NULL DEFAULT 0,
-  revenue REAL NOT NULL DEFAULT 0,
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  ad_id        INTEGER NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+  date         TEXT NOT NULL,
+  spend        REAL    NOT NULL DEFAULT 0,
+  impressions  INTEGER NOT NULL DEFAULT 0,
+  clicks       INTEGER NOT NULL DEFAULT 0,
+  purchases    INTEGER NOT NULL DEFAULT 0,
+  revenue      REAL    NOT NULL DEFAULT 0,
   UNIQUE(ad_id, date)
 );
 CREATE INDEX IF NOT EXISTS idx_insights_date ON insights(date);
-CREATE INDEX IF NOT EXISTS idx_insights_ad ON insights(ad_id);
+CREATE INDEX IF NOT EXISTS idx_insights_ad   ON insights(ad_id);
 
 CREATE TABLE IF NOT EXISTS tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS creative_tags (
   creative_id INTEGER NOT NULL REFERENCES creatives(id) ON DELETE CASCADE,
-  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  tag_id      INTEGER NOT NULL REFERENCES tags(id)      ON DELETE CASCADE,
   PRIMARY KEY (creative_id, tag_id)
 );
+
+-- updated_at triggers ------------------------------------------------------
+CREATE TRIGGER IF NOT EXISTS trg_settings_updated_at
+  AFTER UPDATE ON settings FOR EACH ROW
+  BEGIN UPDATE settings SET updated_at = datetime('now') WHERE key = OLD.key; END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ad_accounts_updated_at
+  AFTER UPDATE ON ad_accounts FOR EACH ROW
+  BEGIN UPDATE ad_accounts SET updated_at = datetime('now') WHERE id = OLD.id; END;
+
+CREATE TRIGGER IF NOT EXISTS trg_creatives_updated_at
+  AFTER UPDATE ON creatives FOR EACH ROW
+  BEGIN UPDATE creatives SET updated_at = datetime('now') WHERE id = OLD.id; END;
+
+CREATE TRIGGER IF NOT EXISTS trg_reports_updated_at
+  AFTER UPDATE ON reports FOR EACH ROW
+  BEGIN UPDATE reports SET updated_at = datetime('now') WHERE id = OLD.id; END;
 `);
+
+// ---------------------------------------------------------------------------
+// Lightweight migration: add columns that older DBs may be missing. SQLite
+// can't do "ADD COLUMN IF NOT EXISTS", so we check PRAGMA first.
+// ---------------------------------------------------------------------------
+function columnExists(table, col) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col);
+}
+if (!columnExists('creatives', 'updated_at')) {
+  db.exec(`ALTER TABLE creatives ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`);
+}
+if (!columnExists('creatives', 'ad_account_id')) {
+  db.exec(`ALTER TABLE creatives ADD COLUMN ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL`);
+}
+
+// Seed default settings on first boot.
+const seedSetting = db.prepare(
+  `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`
+);
+seedSetting.run('schema_version', '1');
+seedSetting.run('default_currency', 'USD');
+seedSetting.run('fatigue_drop_threshold', '0.30');
 
 module.exports = db;
