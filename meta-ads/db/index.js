@@ -155,6 +155,11 @@ for (const [col, ddl] of [
 const ADD_IF_MISSING = {
   creatives: [
     ['external_creative_id', `ALTER TABLE creatives ADD COLUMN external_creative_id TEXT`],
+    ['ad_type',              `ALTER TABLE creatives ADD COLUMN ad_type TEXT`],
+    ['analysis_status',      `ALTER TABLE creatives ADD COLUMN analysis_status TEXT NOT NULL DEFAULT 'pending'`],
+    ['asset_type',           `ALTER TABLE creatives ADD COLUMN asset_type TEXT`],
+    ['messaging_angle',      `ALTER TABLE creatives ADD COLUMN messaging_angle TEXT`],
+    ['funnel_stage',         `ALTER TABLE creatives ADD COLUMN funnel_stage TEXT`],
   ],
   ads: [
     ['ad_account_id',   `ALTER TABLE ads ADD COLUMN ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL`],
@@ -187,6 +192,12 @@ for (const [table, cols] of Object.entries(ADD_IF_MISSING)) {
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_creatives_ext
     ON creatives(external_creative_id) WHERE external_creative_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_creatives_ad_type         ON creatives(ad_type);
+  CREATE INDEX IF NOT EXISTS idx_creatives_analysis_status ON creatives(analysis_status);
+  CREATE INDEX IF NOT EXISTS idx_creatives_asset_type      ON creatives(asset_type);
+  CREATE INDEX IF NOT EXISTS idx_creatives_messaging_angle ON creatives(messaging_angle);
+  CREATE INDEX IF NOT EXISTS idx_creatives_funnel_stage    ON creatives(funnel_stage);
+
   CREATE INDEX IF NOT EXISTS idx_ads_account  ON ads(ad_account_id);
   CREATE INDEX IF NOT EXISTS idx_ads_campaign ON ads(campaign_id);
   CREATE INDEX IF NOT EXISTS idx_ads_status   ON ads(status);
