@@ -11,7 +11,7 @@
 
 const db = require('../db');
 const settings = require('./settings');
-const { importRows } = require('./importer');
+const { ingest } = require('./ingest');
 
 const FIRST_SYNC_DAYS = 90;
 const GRAPH = 'https://graph.facebook.com/v19.0';
@@ -56,29 +56,17 @@ function tokenFor(account) {
 }
 
 // --- Graph API fetch (swappable for tests) --------------------------------
-async function fetchInsights({ accountExternalId, token, since, until }) {
+async function graphPaginate(firstUrl, label) {
   if (!globalThis.fetch) throw new Error('global fetch not available');
-
   const out = [];
-  let url = new URL(`${GRAPH}/${accountExternalId}/insights`);
-  url.searchParams.set('access_token', token);
-  url.searchParams.set('level', 'ad');
-  url.searchParams.set('time_range', JSON.stringify({ since, until }));
-  url.searchParams.set('time_increment', '1');
-  url.searchParams.set('fields', [
-    'ad_id', 'ad_name', 'campaign_name', 'adset_name', 'date_start',
-    'spend', 'impressions', 'clicks', 'actions', 'action_values',
-  ].join(','));
-  url.searchParams.set('limit', '200');
-
-  // Paginate via `paging.next`. Bound the loop to avoid runaway requests.
+  let url = firstUrl;
   for (let page = 0; page < 50; page++) {
     const resp = await fetch(url);
     let body = null;
     try { body = await resp.json(); } catch {}
     if (!resp.ok || (body && body.error)) {
       const msg = (body && body.error && body.error.message) || `HTTP ${resp.status}`;
-      throw new Error(`Meta insights fetch failed: ${msg}`);
+      throw new Error(`Meta ${label} fetch failed: ${msg}`);
     }
     if (Array.isArray(body.data)) out.push(...body.data);
     if (!body.paging || !body.paging.next) break;
@@ -87,22 +75,41 @@ async function fetchInsights({ accountExternalId, token, since, until }) {
   return out;
 }
 
-// Convert a Graph insights row into the flat shape importRows expects.
-function normalize(row) {
-  const purchases = (row.actions || []).find(a => a.action_type === 'purchase');
-  const value     = (row.action_values || []).find(a => a.action_type === 'purchase');
-  return {
-    ad_id:        row.ad_id,
-    ad_name:      row.ad_name,
-    campaign:     row.campaign_name,
-    adset:        row.adset_name,
-    date:         row.date_start,
-    spend:        Number(row.spend)       || 0,
-    impressions:  Number(row.impressions) || 0,
-    clicks:       Number(row.clicks)      || 0,
-    purchases:    purchases ? Number(purchases.value) : 0,
-    revenue:      value     ? Number(value.value)     : 0,
-  };
+async function fetchAds({ accountExternalId, token }) {
+  const url = new URL(`${GRAPH}/${accountExternalId}/ads`);
+  url.searchParams.set('access_token', token);
+  url.searchParams.set('limit', '200');
+  url.searchParams.set('fields', [
+    'id', 'name', 'status', 'effective_status',
+    'campaign_id', 'adset_id', 'campaign{name}', 'adset{name}',
+    'creative{id,name,title,body,thumbnail_url,video_id,object_story_spec,asset_feed_spec}',
+  ].join(','));
+  const rows = await graphPaginate(url, 'ads');
+  // Flatten the nested campaign/adset name fields the UI expects.
+  return rows.map(r => ({
+    ...r,
+    campaign_name: r.campaign?.name || null,
+    adset_name:    r.adset?.name    || null,
+  }));
+}
+
+async function fetchInsights({ accountExternalId, token, since, until }) {
+  const url = new URL(`${GRAPH}/${accountExternalId}/insights`);
+  url.searchParams.set('access_token', token);
+  url.searchParams.set('level', 'ad');
+  url.searchParams.set('time_range', JSON.stringify({ since, until }));
+  url.searchParams.set('time_increment', '1');
+  url.searchParams.set('fields', [
+    'ad_id', 'ad_name', 'campaign_name', 'adset_name', 'date_start',
+    'spend', 'impressions', 'clicks', 'reach', 'frequency',
+    'actions', 'action_values',
+    'video_play_actions',
+    'video_p25_watched_actions', 'video_p50_watched_actions',
+    'video_p75_watched_actions', 'video_p100_watched_actions',
+    'video_avg_time_watched_actions', 'video_thruplay_watched_actions',
+  ].join(','));
+  url.searchParams.set('limit', '200');
+  return graphPaginate(url, 'insights');
 }
 
 // ---------------------------------------------------------------------------
@@ -146,14 +153,21 @@ function startSync(accountId) {
 async function runSync(account, { since, until, windowDays }) {
   try {
     const token = tokenFor(account);
-    const rows = await module.exports.fetchInsights({
-      accountExternalId: account.external_id,
-      token, since, until,
-    });
-    const normalized = rows.map(normalize);
-    const inserted = normalized.length ? importRows(normalized) : 0;
+    // Fetch ad metadata and insights in parallel — independent endpoints.
+    const [ads, insights] = await Promise.all([
+      module.exports.fetchAds({ accountExternalId: account.external_id, token }),
+      module.exports.fetchInsights({ accountExternalId: account.external_id, token, since, until }),
+    ]);
+    const stats = ingest({ accountId: account.id, ads, insights });
     markDone.run({ id: account.id, window: windowDays });
-    return { inserted, rows: normalized.length };
+    return {
+      rows: insights.length,
+      ads_fetched: ads.length,
+      inserted: stats.insights,
+      creatives_upserted: stats.creatives,
+      ads_upserted: stats.ads,
+      skipped: stats.skipped,
+    };
   } catch (e) {
     markError.run({ id: account.id, error: String(e.message || e).slice(0, 500) });
     throw e;
@@ -179,6 +193,7 @@ module.exports = {
   FIRST_SYNC_DAYS,
   startSync,
   syncNow,
-  fetchInsights, // exported so tests/integrations can override via module.exports.fetchInsights
-  _internal: { normalize, windowFor, daysAgoISO },
+  fetchAds,      // swappable by tests via module.exports.fetchAds
+  fetchInsights, // swappable by tests via module.exports.fetchInsights
+  _internal: { windowFor, daysAgoISO },
 };

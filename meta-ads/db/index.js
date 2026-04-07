@@ -149,6 +149,53 @@ for (const [col, ddl] of [
   if (!columnExists('ad_accounts', col)) db.exec(ddl);
 }
 
+// Meta-ingestion extensions: track ad status, campaign/adset IDs, and
+// a stable external creative id so Graph-sourced rows can upsert without
+// content-hashing. Video metrics live on the insights row.
+const ADD_IF_MISSING = {
+  creatives: [
+    ['external_creative_id', `ALTER TABLE creatives ADD COLUMN external_creative_id TEXT`],
+  ],
+  ads: [
+    ['ad_account_id',   `ALTER TABLE ads ADD COLUMN ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL`],
+    ['status',          `ALTER TABLE ads ADD COLUMN status TEXT`],
+    ['effective_status',`ALTER TABLE ads ADD COLUMN effective_status TEXT`],
+    ['campaign_id',     `ALTER TABLE ads ADD COLUMN campaign_id TEXT`],
+    ['adset_id',        `ALTER TABLE ads ADD COLUMN adset_id TEXT`],
+    ['updated_at',      `ALTER TABLE ads ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`],
+  ],
+  insights: [
+    ['reach',                  `ALTER TABLE insights ADD COLUMN reach INTEGER NOT NULL DEFAULT 0`],
+    ['frequency',              `ALTER TABLE insights ADD COLUMN frequency REAL NOT NULL DEFAULT 0`],
+    ['video_plays',            `ALTER TABLE insights ADD COLUMN video_plays INTEGER NOT NULL DEFAULT 0`],
+    ['video_p25',              `ALTER TABLE insights ADD COLUMN video_p25 INTEGER NOT NULL DEFAULT 0`],
+    ['video_p50',              `ALTER TABLE insights ADD COLUMN video_p50 INTEGER NOT NULL DEFAULT 0`],
+    ['video_p75',              `ALTER TABLE insights ADD COLUMN video_p75 INTEGER NOT NULL DEFAULT 0`],
+    ['video_p100',             `ALTER TABLE insights ADD COLUMN video_p100 INTEGER NOT NULL DEFAULT 0`],
+    ['video_avg_time_watched', `ALTER TABLE insights ADD COLUMN video_avg_time_watched REAL NOT NULL DEFAULT 0`],
+    ['thruplays',              `ALTER TABLE insights ADD COLUMN thruplays INTEGER NOT NULL DEFAULT 0`],
+  ],
+};
+for (const [table, cols] of Object.entries(ADD_IF_MISSING)) {
+  for (const [col, ddl] of cols) {
+    if (!columnExists(table, col)) db.exec(ddl);
+  }
+}
+
+// Unique index on external_creative_id (partial so NULLs from CSV imports
+// don't collide).
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_creatives_ext
+    ON creatives(external_creative_id) WHERE external_creative_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_ads_account  ON ads(ad_account_id);
+  CREATE INDEX IF NOT EXISTS idx_ads_campaign ON ads(campaign_id);
+  CREATE INDEX IF NOT EXISTS idx_ads_status   ON ads(status);
+
+  CREATE TRIGGER IF NOT EXISTS trg_ads_updated_at
+    AFTER UPDATE ON ads FOR EACH ROW
+    BEGIN UPDATE ads SET updated_at = datetime('now') WHERE id = OLD.id; END;
+`);
+
 // Seed default settings on first boot.
 const seedSetting = db.prepare(
   `INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`
