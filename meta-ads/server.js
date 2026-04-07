@@ -8,6 +8,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Main entry view lives in views/. Static assets (css/js) still come from public/.
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 
+app.use('/api/settings', require('./routes/settings'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/creatives', require('./routes/creatives'));
 app.use('/api/metrics', require('./routes/metrics'));
