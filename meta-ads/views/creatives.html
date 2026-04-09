@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Creatives — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Creative Library</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html" class="active">Creatives</a>
+      <a href="/compare.html">Compare</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Controls: identical layout in table and card view so the user's
+         eye doesn't have to re-orient when toggling. -->
+    <div class="controls">
+      <div class="controls-row controls-top">
+        <div class="seg" role="tablist" aria-label="View mode">
+          <button class="seg-btn active" data-view="table" role="tab" aria-selected="true">Table</button>
+          <button class="seg-btn"        data-view="card"  role="tab" aria-selected="false">Cards</button>
+        </div>
+
+        <input id="search" class="search" placeholder="Search name, headline, copy…" />
+
+        <span class="spacer"></span>
+
+        <!-- Group-by is meaningful only in table view; hidden in card mode. -->
+        <label class="ctl table-only">
+          <span>Group by</span>
+          <select id="group-by">
+            <option value="">— None —</option>
+            <option value="account">Account</option>
+            <option value="ad_type">Ad type</option>
+            <option value="analysis_status">Analysis status</option>
+            <option value="asset_type">Asset type</option>
+            <option value="messaging_angle">Messaging angle</option>
+            <option value="funnel_stage">Funnel stage</option>
+          </select>
+        </label>
+
+        <!-- Column visibility menu (table only). -->
+        <div class="ctl table-only menu-wrap">
+          <button id="cols-btn" class="ctl-btn">Columns ▾</button>
+          <div id="cols-menu" class="menu" hidden></div>
+        </div>
+      </div>
+
+      <div class="controls-row filters-row">
+        <select class="filter" data-filter="account_id"><option value="">All accounts</option></select>
+        <select class="filter" data-filter="ad_type"><option value="">All ad types</option></select>
+        <select class="filter" data-filter="analysis_status"><option value="">All analysis statuses</option></select>
+        <select class="filter" data-filter="asset_type"><option value="">All asset types</option></select>
+        <select class="filter" data-filter="messaging_angle"><option value="">All angles</option></select>
+        <select class="filter" data-filter="funnel_stage"><option value="">All funnel stages</option></select>
+        <button id="clear-filters" class="ctl-btn ctl-btn-quiet">Clear</button>
+        <span class="spacer"></span>
+        <span id="result-count" class="muted small"></span>
+      </div>
+    </div>
+
+    <!-- Loading skeleton (shown while first fetch is in flight). -->
+    <div id="loading" class="skeleton-list">
+      <div class="skel-row"></div><div class="skel-row"></div><div class="skel-row"></div>
+      <div class="skel-row"></div><div class="skel-row"></div>
+    </div>
+
+    <!-- Empty state. -->
+    <div id="empty" class="card empty-state" style="display:none">
+      <div class="empty-icon">∅</div>
+      <div class="empty-title">No creatives match these filters</div>
+      <div class="empty-sub">Try clearing one filter, or sync an account on the Accounts tab.</div>
+      <button class="ctl-btn ctl-btn-primary" id="empty-clear">Clear filters</button>
+    </div>
+
+    <!-- Table view -->
+    <div id="table-view" style="display:none">
+      <table id="tbl">
+        <thead><tr id="thead-row"></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Card view -->
+    <div id="card-view" class="card-grid" style="display:none"></div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/creatives-tab.js"></script>
+</body>
+</html>
