@@ -208,6 +208,8 @@ button.danger:hover { opacity: 0.9; }
 }
 .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
 .seg-btn.active { background: var(--accent); color: white; }
+.seg-wide .seg-btn { padding: 6px 18px; }
+.delivery-row { margin-bottom: 2px; }
 
 /* search */
 .search {

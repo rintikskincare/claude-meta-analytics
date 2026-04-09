@@ -24,6 +24,23 @@ const FILTER_COLUMN = {
   funnel_stage:    'c.funnel_stage',
 };
 
+// Delivery-status presets, modelled after Ads Manager's top-level filter.
+// Each adds extra JOINs and/or WHERE conditions that reference the ads and
+// insights tables.
+const DELIVERY_PRESETS = {
+  all:           { joins: '', cond: '' },
+  had_delivery:  {
+    joins: 'JOIN ads _da ON _da.creative_id = c.id JOIN insights _di ON _di.ad_id = _da.id',
+    cond:  '_di.spend > 0',
+    group: true,   // needs GROUP BY because the joins fan out
+  },
+  active:        {
+    joins: 'JOIN ads _da ON _da.creative_id = c.id',
+    cond:  "UPPER(_da.effective_status) = 'ACTIVE'",
+    group: true,
+  },
+};
+
 function buildWhere(query) {
   const conds = [];
   const params = [];
@@ -47,11 +64,17 @@ function buildWhere(query) {
     const like = '%' + String(query.q).trim() + '%';
     params.push(like, like, like);
   }
-  return { where: conds.length ? 'WHERE ' + conds.join(' AND ') : '', params };
+
+  // Delivery-status preset.
+  const delivery = DELIVERY_PRESETS[query.delivery] || DELIVERY_PRESETS.all;
+  if (delivery.cond) conds.push(delivery.cond);
+
+  const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+  return { where, params, delivery };
 }
 
 router.get('/', (req, res) => {
-  const { where, params } = buildWhere(req.query);
+  const { where, params, delivery } = buildWhere(req.query);
   const limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
 
   const rows = db.prepare(`
@@ -61,6 +84,7 @@ router.get('/', (req, res) => {
            c.created_at, c.updated_at,
            GROUP_CONCAT(DISTINCT t.name) tags
       FROM creatives c
+      ${delivery.joins || ''}
       LEFT JOIN creative_tags ct ON ct.creative_id = c.id
       LEFT JOIN tags t ON t.id = ct.tag_id
     ${where}

@@ -15,6 +15,7 @@ function label(s) {
 let allRows = [];
 let filterOptions = {};
 let view = localStorage.getItem('creatives-view') || 'table';
+let delivery = 'all';
 let groupBy = '';
 let searchDebounce = null;
 
@@ -82,6 +83,7 @@ async function fetchCreatives() {
   }
   const q = $('#search').value.trim();
   if (q) params.q = q;
+  if (delivery !== 'all') params.delivery = delivery;
   allRows = await api.get('/api/creatives?' + qs(params));
   showLoading(false);
   render();
@@ -236,6 +238,17 @@ $$('.seg-btn').forEach(b => b.addEventListener('click', () => setView(b.dataset.
 // ── Group-by ───────────────────────────────────────────────────────────────
 $('#group-by').addEventListener('change', e => { groupBy = e.target.value; render(); });
 
+// ── Delivery-status toggle ─────────────────────────────────────────────────
+$$('[data-delivery]').forEach(btn => btn.addEventListener('click', () => {
+  delivery = btn.dataset.delivery;
+  $$('[data-delivery]').forEach(b => {
+    const on = b.dataset.delivery === delivery;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on);
+  });
+  fetchCreatives();
+}));
+
 // ── Filters ────────────────────────────────────────────────────────────────
 $$('.filter').forEach(sel => sel.addEventListener('change', fetchCreatives));
 $('#search').addEventListener('input', () => {
@@ -247,6 +260,13 @@ $('#empty-clear').addEventListener('click', clearFilters);
 function clearFilters() {
   $$('.filter').forEach(s => { s.value = ''; });
   $('#search').value = '';
+  // Reset delivery toggle to "All Ads".
+  delivery = 'all';
+  $$('[data-delivery]').forEach(b => {
+    const on = b.dataset.delivery === 'all';
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on);
+  });
   fetchCreatives();
 }
 
