@@ -47,7 +47,7 @@ function thumbHtml(url) {
   return `<img class="thumb" src="${esc(url)}" onerror="this.style.visibility='hidden'" alt="">`;
 }
 function nameHtml(v, row) {
-  return `<a href="/creative.html?id=${row.id}">${esc(v)}</a>`;
+  return `<a href="#" class="detail-link" data-id="${row.id}">${esc(v)}</a>`;
 }
 function statusBadge(v) {
   const cls = v === 'analyzed' ? 'badge-good' : v === 'error' ? 'badge-bad' : 'badge-muted';
@@ -133,6 +133,7 @@ function renderTable() {
     }
   }
   tbody.innerHTML = html;
+  bindDetailLinks(tbody);
 }
 
 function groupRows(rows) {
@@ -164,7 +165,7 @@ function renderCards() {
   grid.style.display = 'grid';
 
   grid.innerHTML = allRows.map(r => `
-    <a href="/creative.html?id=${r.id}" class="ccard">
+    <a href="#" class="ccard detail-link" data-id="${r.id}">
       <div class="ccard-thumb">
         ${r.thumbnail_url
           ? `<img src="${esc(r.thumbnail_url)}" onerror="this.style.visibility='hidden'" alt="">`
@@ -186,6 +187,7 @@ function renderCards() {
       </div>
     </a>
   `).join('');
+  bindDetailLinks(grid);
 }
 
 // ── Loading / empty ────────────────────────────────────────────────────────
@@ -268,6 +270,214 @@ function clearFilters() {
     b.setAttribute('aria-selected', on);
   });
   fetchCreatives();
+}
+
+// ── Detail modal ──────────────────────────────────────────────────────────
+const dm = $('#detail-modal');
+const dmLoading = $('#dm-loading');
+const dmContent = $('#dm-content');
+let dmCurrentId = null;
+
+function bindDetailLinks(container) {
+  container.querySelectorAll('.detail-link').forEach(el => {
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      openDetail(Number(el.dataset.id));
+    });
+  });
+}
+
+function openDetail(id) {
+  dmCurrentId = id;
+  dm.style.display = 'flex';
+  dmLoading.style.display = 'block';
+  dmContent.style.display = 'none';
+  $('#dm-title').textContent = 'Loading…';
+  loadDetail(id);
+}
+function closeDetail() {
+  dm.style.display = 'none';
+  dmCurrentId = null;
+  // Stop any playing video
+  const v = dmContent.querySelector('video');
+  if (v) v.pause();
+}
+
+$('#dm-close').addEventListener('click', closeDetail);
+dm.addEventListener('click', e => { if (e.target === dm) closeDetail(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && dm.style.display === 'flex') closeDetail(); });
+
+async function loadDetail(id) {
+  try {
+    const data = await api.get(`/api/creatives/${id}`);
+    if (dmCurrentId !== id) return; // stale
+    renderDetail(data);
+  } catch (e) {
+    $('#dm-title').textContent = 'Error';
+    dmLoading.innerHTML = `<div class="form-err">${esc(e.message)}</div>`;
+  }
+}
+
+function renderDetail(data) {
+  const c = data.creative;
+  const t = data.totals;
+
+  $('#dm-title').textContent = c.name;
+  $('#dm-full-link').href = `/creative.html?id=${c.id}`;
+
+  // ── Media preview ──
+  $('#dm-media').innerHTML = buildMediaPreview(c);
+
+  // ── Copy ──
+  const parts = [];
+  if (c.headline) parts.push(`<div class="dm-headline">${esc(c.headline)}</div>`);
+  if (c.body) parts.push(`<div class="dm-body-text">${esc(c.body)}</div>`);
+  if (!parts.length) parts.push(`<div class="muted" style="font-size:12px">No copy available</div>`);
+  $('#dm-copy').innerHTML = parts.join('');
+
+  // ── Metrics ──
+  const tiles = [
+    ['Spend',       fmt.money(t.spend)],
+    ['Revenue',     fmt.money(t.revenue)],
+    ['ROAS',        fmt.ratio(t.roas)],
+    ['CPA',         fmt.cents(t.cpa)],
+    ['CTR',         fmt.pct(t.ctr)],
+    ['Purchases',   fmt.num(t.purchases)],
+  ];
+  $('#dm-metrics').innerHTML = tiles.map(([l, v]) =>
+    `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div></div>`
+  ).join('');
+
+  // ── AI tags ──
+  const aiFields = [
+    ['Ad type',   c.ad_type],
+    ['Asset type', c.asset_type],
+    ['Angle',     c.messaging_angle],
+    ['Funnel',    c.funnel_stage],
+  ];
+  const hasTags = aiFields.some(([, v]) => v);
+  $('#dm-tags').innerHTML = hasTags
+    ? `<div class="dm-tag-grid">${aiFields.map(([l, v]) =>
+        `<div class="dm-tag-item">
+          <span class="dm-tag-label">${l}</span>
+          <span class="chip">${v ? label(v) : '<span class="muted">—</span>'}</span>
+        </div>`
+      ).join('')}</div>`
+    : `<div class="dm-no-tags">
+        <span class="muted">No AI tags yet.</span> Click Analyze to classify this creative.
+      </div>`;
+
+  // ── Manual tags ──
+  const manualTags = data.tags || [];
+  $('#dm-manual-tags').innerHTML = manualTags.length
+    ? `<div class="section-label" style="margin-top:16px">Tags</div>
+       <div>${manualTags.map(t => `<span class="tag">${esc(t)}</span>`).join(' ')}</div>`
+    : '';
+
+  // ── Analyze button ──
+  renderAnalyzeBtn(c.analysis_status);
+
+  dmLoading.style.display = 'none';
+  dmContent.style.display = 'block';
+}
+
+function buildMediaPreview(c) {
+  const isVideo = c.format === 'video';
+  const url = c.thumbnail_url;
+
+  if (isVideo && url) {
+    // Try <video> first; on error fall back to thumbnail image, then placeholder.
+    return `
+      <div class="dm-media-wrap">
+        <video class="dm-video" controls preload="metadata"
+               poster="${esc(url)}"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <source src="${esc(url)}" type="video/mp4">
+        </video>
+        <div class="dm-media-fallback" style="display:none">
+          <img src="${esc(url)}" alt=""
+               onerror="this.parentNode.innerHTML='<div class=\\'dm-ph\\'><div class=\\'dm-ph-icon\\'>&#9654;</div><div class=\\'dm-ph-label\\'>Video preview unavailable</div></div>';">
+        </div>
+        <span class="dm-format-badge">Video</span>
+      </div>`;
+  }
+  if (url) {
+    return `
+      <div class="dm-media-wrap">
+        <img class="dm-img" src="${esc(url)}" alt=""
+             onerror="this.outerHTML='<div class=\\'dm-ph\\'><div class=\\'dm-ph-icon\\'>&#128444;</div><div class=\\'dm-ph-label\\'>Image preview unavailable</div></div>';">
+        ${isVideo ? '<span class="dm-format-badge">Video</span>' : ''}
+      </div>`;
+  }
+  // No URL at all — full placeholder.
+  const icon = isVideo ? '&#9654;' : '&#128444;';
+  const typeLabel = isVideo ? 'Video' : c.format === 'carousel' ? 'Carousel' : 'Image';
+  return `
+    <div class="dm-media-wrap">
+      <div class="dm-ph">
+        <div class="dm-ph-icon">${icon}</div>
+        <div class="dm-ph-label">${typeLabel} preview unavailable</div>
+      </div>
+    </div>`;
+}
+
+function renderAnalyzeBtn(status) {
+  const btn = $('#dm-analyze');
+  if (status === 'analyzing') {
+    btn.disabled = true;
+    btn.textContent = 'Analyzing…';
+    btn.className = 'ctl-btn ctl-btn-primary dm-btn-analyzing';
+  } else if (status === 'analyzed') {
+    btn.disabled = false;
+    btn.textContent = 'Re-analyze';
+    btn.className = 'ctl-btn';
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Analyze creative';
+    btn.className = 'ctl-btn ctl-btn-primary';
+  }
+}
+
+$('#dm-analyze').addEventListener('click', async () => {
+  if (!dmCurrentId) return;
+  const btn = $('#dm-analyze');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+  btn.className = 'ctl-btn ctl-btn-primary dm-btn-analyzing';
+  try {
+    await api.post(`/api/creatives/${dmCurrentId}/analyze`);
+    showToast('Analysis started');
+    // Poll until status changes from 'analyzing'.
+    pollAnalysis(dmCurrentId);
+  } catch (e) {
+    showToast(e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Retry analysis';
+  }
+});
+
+function pollAnalysis(id, attempts = 0) {
+  if (attempts > 10 || dmCurrentId !== id) return;
+  setTimeout(async () => {
+    try {
+      const data = await api.get(`/api/creatives/${id}`);
+      if (data.creative.analysis_status !== 'analyzing') {
+        if (dmCurrentId === id) renderDetail(data);
+        fetchCreatives(); // refresh list behind modal
+        return;
+      }
+    } catch { /* ignore */ }
+    pollAnalysis(id, attempts + 1);
+  }, 1000);
+}
+
+function showToast(msg, kind = 'info') {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast ' + kind;
+  t.style.display = 'block';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { t.style.display = 'none'; }, 2800);
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────

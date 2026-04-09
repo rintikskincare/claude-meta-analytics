@@ -132,6 +132,30 @@ router.get('/:id', (req, res) => {
   res.json(data);
 });
 
+// Trigger (re-)analysis. Sets status to 'analyzing' and returns immediately;
+// the actual AI analysis is plugged in later. On completion the caller (or a
+// background worker) sets status to 'analyzed' and populates the AI-tag
+// columns (messaging_angle, funnel_stage, asset_type, ad_type).
+router.post('/:id/analyze', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const row = db.prepare('SELECT id, analysis_status FROM creatives WHERE id = ?').get(id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  db.prepare(`UPDATE creatives SET analysis_status = 'analyzing' WHERE id = ?`).run(id);
+  // In production this would enqueue an async job. For now we simulate a
+  // short delay then mark analyzed with placeholder tags.
+  setTimeout(() => {
+    db.prepare(`
+      UPDATE creatives SET analysis_status = 'analyzed',
+             ad_type         = COALESCE(ad_type, 'direct_response'),
+             asset_type      = COALESCE(asset_type, format),
+             messaging_angle = COALESCE(messaging_angle, 'general'),
+             funnel_stage    = COALESCE(funnel_stage, 'consideration')
+       WHERE id = ?
+    `).run(id);
+  }, 1500);
+  res.json({ ok: true, analysis_status: 'analyzing' });
+});
+
 router.post('/:id/tags', express.json(), (req, res) => {
   const id = parseInt(req.params.id, 10);
   const name = String(req.body.name || '').trim();
