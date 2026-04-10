@@ -1,35 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { creativeDetail, deriveKpis } = require('../services/metrics');
-const gemini = require('../services/gemini');
-
-const applyAnalysis = db.prepare(`
-  UPDATE creatives SET
-    analysis_status = 'analyzed',
-    asset_type      = @asset_type,
-    visual_format   = @visual_format,
-    messaging_angle = @messaging_angle,
-    hook_tactic     = @hook_tactic,
-    offer_type      = @offer_type,
-    funnel_stage    = @funnel_stage,
-    summary         = @summary,
-    analyzed_at     = datetime('now'),
-    analysis_error  = NULL
-  WHERE id = @id
-`);
-
-const markAnalysisError = db.prepare(`
-  UPDATE creatives SET analysis_status = 'error', analysis_error = @error WHERE id = @id
-`);
-
-async function runAnalysis(id, creative) {
-  try {
-    const tags = await gemini.analyzeCreative(creative);
-    applyAnalysis.run({ id, ...tags });
-  } catch (e) {
-    markAnalysisError.run({ id, error: String(e.message || e).slice(0, 500) });
-  }
-}
+const { runAnalysis, markAnalyzing } = require('../services/analysis');
 
 const router = express.Router();
 
@@ -170,8 +142,7 @@ router.post('/analyze-batch', express.json(), async (req, res) => {
   if (!ids.length) return res.json({ ok: true, requested: 0, results: [] });
 
   // Mark all as analyzing up-front so the UI can reflect immediately.
-  const markStmt = db.prepare(`UPDATE creatives SET analysis_status = 'analyzing', analysis_error = NULL WHERE id = ?`);
-  for (const id of ids) markStmt.run(id);
+  for (const id of ids) markAnalyzing.run(id);
 
   res.json({ ok: true, requested: ids.length, analysis_status: 'analyzing' });
 
@@ -197,7 +168,7 @@ router.post('/:id/analyze', (req, res) => {
   const id = parseInt(req.params.id, 10);
   const row = db.prepare('SELECT * FROM creatives WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'not found' });
-  db.prepare(`UPDATE creatives SET analysis_status = 'analyzing', analysis_error = NULL WHERE id = ?`).run(id);
+  markAnalyzing.run(id);
   res.json({ ok: true, analysis_status: 'analyzing' });
 
   // Fire-and-forget: run the Gemini call and write results.

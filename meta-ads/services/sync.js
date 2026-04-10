@@ -12,6 +12,7 @@
 const db = require('../db');
 const settings = require('./settings');
 const { ingest } = require('./ingest');
+const { autoAnalyze } = require('./analysis');
 
 const FIRST_SYNC_DAYS = 90;
 const GRAPH = 'https://graph.facebook.com/v19.0';
@@ -160,6 +161,11 @@ async function runSync(account, { since, until, windowDays }) {
     ]);
     const stats = ingest({ accountId: account.id, ads, insights });
     markDone.run({ id: account.id, window: windowDays });
+
+    // Auto-analyze new/pending creatives when a Gemini key is configured.
+    // Failures are recorded per-creative and never crash the sync.
+    const analysis = await module.exports.autoAnalyze(account.id);
+
     return {
       rows: insights.length,
       ads_fetched: ads.length,
@@ -167,6 +173,7 @@ async function runSync(account, { since, until, windowDays }) {
       creatives_upserted: stats.creatives,
       ads_upserted: stats.ads,
       skipped: stats.skipped,
+      analysis,
     };
   } catch (e) {
     markError.run({ id: account.id, error: String(e.message || e).slice(0, 500) });
@@ -193,7 +200,8 @@ module.exports = {
   FIRST_SYNC_DAYS,
   startSync,
   syncNow,
-  fetchAds,      // swappable by tests via module.exports.fetchAds
-  fetchInsights, // swappable by tests via module.exports.fetchInsights
+  fetchAds,       // swappable by tests via module.exports.fetchAds
+  fetchInsights,  // swappable by tests via module.exports.fetchInsights
+  autoAnalyze,    // swappable by tests via module.exports.autoAnalyze
   _internal: { windowFor, daysAgoISO },
 };

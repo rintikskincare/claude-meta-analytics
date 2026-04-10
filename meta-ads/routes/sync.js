@@ -59,6 +59,7 @@ router.post('/', express.json(), async (req, res) => {
         until: r.until,
         rows_fetched: r.rows,
         rows_inserted: r.inserted,
+        analysis: r.analysis || null,
         duration_ms: Date.now() - t0,
       });
     } catch (e) {
