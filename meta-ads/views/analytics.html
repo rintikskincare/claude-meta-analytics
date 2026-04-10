@@ -68,10 +68,31 @@
       <tbody></tbody>
     </table>
 
+    <!-- ── Stop / Scale Recommendations ── -->
+    <div id="recs-section">
+      <div class="section-title" style="margin-top:40px">Stop / Scale Recommendations</div>
+
+      <div class="kpi-grid" id="rec-kpis"></div>
+
+      <div id="rec-filter-bar" class="controls-row" style="margin-bottom:12px">
+        <div class="seg" id="rec-action-seg">
+          <button class="seg-btn active" data-a="all">All</button>
+          <button class="seg-btn" data-a="scale">Scale</button>
+          <button class="seg-btn" data-a="watch">Watch</button>
+          <button class="seg-btn" data-a="stop">Stop</button>
+        </div>
+        <select id="rec-funnel-filter" class="ctl" style="margin-left:8px">
+          <option value="">All funnels</option>
+        </select>
+      </div>
+
+      <div id="rec-cards" class="rec-grid"></div>
+    </div>
+
     <div id="empty" class="empty-state" style="display:none">
       <div class="empty-icon">&#128200;</div>
       <div class="empty-title">No delivery data</div>
-      <div class="empty-sub">Import data or sync an account first to see win rate analysis.</div>
+      <div class="empty-sub">Import data or sync an account first to see analytics.</div>
     </div>
   </main>
 

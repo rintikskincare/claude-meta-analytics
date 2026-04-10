@@ -257,4 +257,145 @@ function winRateAnalysis({ from, to, roasThreshold } = {}) {
   };
 }
 
-module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts, winRateAnalysis };
+// Stop / Scale Recommendations — funnel-aware action cards.
+//
+// Each creative with delivery gets bucketed into one of:
+//   Scale  — performing well for its funnel, increase budget
+//   Watch  — borderline or early signal, monitor closely
+//   Stop   — underperforming, cut spend
+//
+// The logic mirrors the win-rate scoring thresholds but adds a
+// middle "Watch" band and generates a short rationale string
+// explaining the verdict.
+
+function recommendations({ from, to, roasThreshold, minSpend } = {}) {
+  const settings = require('./settings');
+  const threshold = roasThreshold ?? settings.get('winner_roas_threshold');
+  const spendFloor = minSpend ?? settings.get('iteration_spend_threshold');
+
+  const { where, params } = dateClause(from, to);
+
+  const rows = db.prepare(`
+    SELECT c.id, c.name, c.format, c.thumbnail_url,
+           c.funnel_stage, c.asset_type, c.messaging_angle, c.hook_tactic,
+           SUM(i.spend)       spend,
+           SUM(i.impressions) impressions,
+           SUM(i.clicks)      clicks,
+           SUM(i.purchases)   purchases,
+           SUM(i.revenue)     revenue
+    FROM creatives c
+    JOIN ads a ON a.creative_id = c.id
+    JOIN insights i ON i.ad_id = a.id
+    ${where}
+    GROUP BY c.id
+    HAVING spend > 0
+  `).all(params);
+
+  const creatives = rows.map(r => {
+    const kpis = deriveKpis(r);
+    const funnel = (r.funnel_stage || 'unknown').toLowerCase();
+    let action, rationale;
+
+    if (funnel === 'awareness') {
+      // TOF — engagement driven
+      if (kpis.ctr >= 0.015) {
+        action = 'scale';
+        rationale = `Strong engagement at ${(kpis.ctr * 100).toFixed(2)}% CTR — well above the 1% TOF bar. Increase budget to maximize reach.`;
+      } else if (kpis.ctr >= 0.008) {
+        action = 'watch';
+        rationale = `CTR of ${(kpis.ctr * 100).toFixed(2)}% is decent but below the 1.5% scale threshold. Test new hooks or audiences before scaling.`;
+      } else {
+        action = 'stop';
+        rationale = `Low engagement at ${(kpis.ctr * 100).toFixed(2)}% CTR — below the 0.8% floor. Creative is not resonating with the audience.`;
+      }
+    } else if (funnel === 'consideration') {
+      // MOF — CTR + CPC efficiency
+      const goodCtr = kpis.ctr >= 0.01;
+      const goodCpc = kpis.cpc > 0 && kpis.cpc <= 2;
+      const okCtr   = kpis.ctr >= 0.006;
+      const okCpc   = kpis.cpc > 0 && kpis.cpc <= 4;
+
+      if (goodCtr && goodCpc) {
+        action = 'scale';
+        rationale = `Efficient consideration driver — ${(kpis.ctr * 100).toFixed(2)}% CTR with ${fmt_money(kpis.cpc)} CPC. Scale budget to capture more intent.`;
+      } else if (okCtr && okCpc) {
+        action = 'watch';
+        rationale = `Moderate consideration metrics — ${(kpis.ctr * 100).toFixed(2)}% CTR, ${fmt_money(kpis.cpc)} CPC. Refine targeting or copy to improve efficiency.`;
+      } else {
+        action = 'stop';
+        const reason = !okCtr ? `CTR too low at ${(kpis.ctr * 100).toFixed(2)}%` : `CPC too high at ${fmt_money(kpis.cpc)}`;
+        rationale = `${reason}. Not driving cost-effective consideration. Reallocate budget.`;
+      }
+    } else if (funnel === 'conversion' || funnel === 'retention') {
+      // BOF — hard ROAS gate
+      if (kpis.roas >= threshold * 1.5) {
+        action = 'scale';
+        rationale = `Top performer at ${kpis.roas.toFixed(2)}x ROAS — ${((kpis.roas / threshold - 1) * 100).toFixed(0)}% above the ${threshold}x threshold. Maximize budget allocation.`;
+      } else if (kpis.roas >= threshold * 0.7) {
+        action = 'watch';
+        if (kpis.roas >= threshold) {
+          rationale = `ROAS of ${kpis.roas.toFixed(2)}x meets the ${threshold}x threshold but lacks headroom. Monitor for fatigue before scaling.`;
+        } else {
+          rationale = `ROAS of ${kpis.roas.toFixed(2)}x is close to the ${threshold}x threshold. May improve with audience or bid optimization.`;
+        }
+      } else {
+        action = 'stop';
+        rationale = `ROAS of ${kpis.roas.toFixed(2)}x is well below the ${threshold}x target. Burning budget without adequate return.`;
+      }
+    } else {
+      // Unknown funnel — fall back to ROAS
+      if (kpis.roas >= threshold * 1.5) {
+        action = 'scale';
+        rationale = `Strong ${kpis.roas.toFixed(2)}x ROAS despite no funnel tag. Classify the funnel stage and scale.`;
+      } else if (kpis.roas >= threshold * 0.7) {
+        action = 'watch';
+        rationale = `${kpis.roas.toFixed(2)}x ROAS is borderline. Assign a funnel stage for more precise scoring, then re-evaluate.`;
+      } else {
+        action = 'stop';
+        rationale = `Low ${kpis.roas.toFixed(2)}x ROAS with no funnel classification. Pause and analyze before continuing spend.`;
+      }
+    }
+
+    // Insufficient-spend override: if below the spend floor, downgrade
+    // scale→watch with a "low sample" caveat (never override stop).
+    if (r.spend < spendFloor && action === 'scale') {
+      action = 'watch';
+      rationale = `Metrics look promising but only ${fmt_money(r.spend)} spent (below ${fmt_money(spendFloor)} floor). Let it run longer before scaling.`;
+    }
+
+    return { ...r, ...kpis, funnel, action, rationale };
+  });
+
+  // Sort: scale first, then watch, then stop. Within each bucket, by spend desc.
+  const ORDER = { scale: 0, watch: 1, stop: 2 };
+  creatives.sort((a, b) => (ORDER[a.action] - ORDER[b.action]) || (b.spend - a.spend));
+
+  const scale = creatives.filter(c => c.action === 'scale');
+  const watch = creatives.filter(c => c.action === 'watch');
+  const stop  = creatives.filter(c => c.action === 'stop');
+
+  const sumField = (arr, f) => arr.reduce((s, r) => s + (r[f] || 0), 0);
+
+  return {
+    summary: {
+      total:     creatives.length,
+      scale:     scale.length,
+      watch:     watch.length,
+      stop:      stop.length,
+      scaleSpend: sumField(scale, 'spend'),
+      watchSpend: sumField(watch, 'spend'),
+      stopSpend:  sumField(stop, 'spend'),
+      totalSpend: sumField(creatives, 'spend'),
+      totalRevenue: sumField(creatives, 'revenue'),
+      blendedRoas: safe(sumField(creatives, 'revenue'), sumField(creatives, 'spend')),
+      roasThreshold: threshold,
+      spendFloor,
+    },
+    creatives,
+  };
+}
+
+// Tiny helper — format dollars without needing the browser's fmt object.
+function fmt_money(n) { return '$' + (n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts, winRateAnalysis, recommendations };

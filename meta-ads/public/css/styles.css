@@ -393,3 +393,49 @@ button.danger:hover { opacity: 0.9; }
 .wr-funnel-stat { display: flex; align-items: baseline; gap: 8px; }
 .wr-funnel-big { font-size: 28px; font-weight: 700; }
 .wr-funnel-row { display: flex; justify-content: space-between; font-size: 12px; }
+
+/* =========== Analytics — Recommendations =========== */
+.rec-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.rec-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  transition: border-color 0.15s;
+}
+.rec-card:hover { border-color: var(--accent); }
+.rec-card-scale  { border-left: 3px solid var(--good); }
+.rec-card-watch  { border-left: 3px solid #facc15; }
+.rec-card-stop   { border-left: 3px solid var(--bad); }
+
+.rec-head { display: flex; align-items: center; gap: 10px; }
+.rec-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; background: var(--panel-2); flex-shrink: 0; }
+.rec-info { flex: 1; min-width: 0; }
+.rec-name {
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rec-name a { color: var(--text); text-decoration: none; }
+.rec-name a:hover { color: var(--accent); }
+.rec-meta { font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center; margin-top: 2px; }
+
+.rec-badge {
+  display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px;
+  border-radius: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.rec-badge-scale { background: rgba(74,222,128,0.12); color: var(--good); }
+.rec-badge-watch { background: rgba(250,204,21,0.12); color: #facc15; }
+.rec-badge-stop  { background: rgba(248,113,113,0.12); color: var(--bad); }
+
+.rec-rationale {
+  font-size: 12px; color: var(--muted); line-height: 1.55;
+  padding: 8px 10px; background: var(--panel-2); border-radius: 6px;
+}
+
+.rec-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+}
+.rec-metric { text-align: center; }
+.rec-metric-val { font-size: 15px; font-weight: 600; }
+.rec-metric-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }

@@ -1,6 +1,7 @@
-// Win Rate Analysis tab
-const state = { sort: 'score', dir: 'desc', verdict: 'all', funnel: '' };
-let data = null; // latest API response
+// Analytics tab — Win Rate + Recommendations
+const state = { sort: 'score', dir: 'desc', verdict: 'all', funnel: '', recAction: 'all', recFunnel: '' };
+let data = null;     // win-rate response
+let recData = null;  // recommendations response
 
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,26 +35,34 @@ async function loadAll() {
 
   document.getElementById('status').textContent = 'Loading...';
   try {
-    data = await api.get('/api/metrics/win-rate?' + qs(params));
+    [data, recData] = await Promise.all([
+      api.get('/api/metrics/win-rate?' + qs(params)),
+      api.get('/api/metrics/recommendations?' + qs(params)),
+    ]);
   } catch (e) {
     document.getElementById('status').textContent = 'Error: ' + e.message;
     return;
   }
 
-  if (!data.creatives.length) {
+  const hasData = data.creatives.length > 0;
+  document.getElementById('empty').style.display = hasData ? 'none' : '';
+  document.getElementById('recs-section').style.display = hasData ? '' : 'none';
+
+  if (!hasData) {
     document.getElementById('kpis').innerHTML = '';
     document.getElementById('funnel-cards').innerHTML = '';
     document.querySelector('#scoreboard tbody').innerHTML = '';
-    document.getElementById('empty').style.display = '';
     document.getElementById('status').textContent = '';
     return;
   }
-  document.getElementById('empty').style.display = 'none';
 
   renderKpis(data.summary);
   renderFunnelCards(data.funnels, data.summary.roasThreshold);
   populateFunnelFilter(data.funnels);
   renderTable();
+  renderRecKpis(recData.summary);
+  populateRecFunnelFilter(recData.creatives);
+  renderRecCards();
   document.getElementById('status').textContent =
     data.creatives.length + ' creatives analyzed';
 }
@@ -212,6 +221,118 @@ document.querySelectorAll('#scoreboard th[data-sort]').forEach(th => {
     state.sort = k;
     renderTable();
   });
+});
+
+// ── Recommendation KPIs ──
+
+function renderRecKpis(s) {
+  const tiles = [
+    ['Scale', `<span class="good">${s.scale}</span>`],
+    ['Watch', `<span style="color:#facc15">${s.watch}</span>`],
+    ['Stop', `<span class="bad">${s.stop}</span>`],
+    ['Scale Spend', `<span class="good">${fmt.money(s.scaleSpend)}</span>`],
+    ['Watch Spend', `<span style="color:#facc15">${fmt.money(s.watchSpend)}</span>`],
+    ['Stop Spend', `<span class="bad">${fmt.money(s.stopSpend)}</span>`],
+    ['Blended ROAS', fmt.ratio(s.blendedRoas)],
+    ['Spend Floor', fmt.money(s.spendFloor)],
+  ];
+  document.getElementById('rec-kpis').innerHTML = tiles
+    .map(([l, v]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div></div>`)
+    .join('');
+}
+
+// ── Recommendation funnel filter ──
+
+function populateRecFunnelFilter(creatives) {
+  const funnels = [...new Set(creatives.map(c => c.funnel))];
+  const ordered = FUNNEL_ORDER.filter(f => funnels.includes(f));
+  const sel = document.getElementById('rec-funnel-filter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All funnels</option>' +
+    ordered.map(f => `<option value="${f}">${FUNNEL_LABEL[f] || f}</option>`).join('');
+  sel.value = current;
+}
+
+// ── Recommendation cards ──
+
+const ACTION_LABEL = { scale: 'Scale', watch: 'Watch', stop: 'Stop' };
+
+function renderRecCards() {
+  if (!recData) return;
+  let items = recData.creatives;
+
+  if (state.recAction !== 'all') items = items.filter(c => c.action === state.recAction);
+  if (state.recFunnel) items = items.filter(c => c.funnel === state.recFunnel);
+
+  const el = document.getElementById('rec-cards');
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px">No matching creatives.</div>';
+    return;
+  }
+
+  el.innerHTML = items.map(c => {
+    const thumbHtml = c.thumbnail_url
+      ? `<img class="rec-thumb" src="${c.thumbnail_url}" alt="" onerror="this.style.visibility='hidden'">`
+      : `<div class="rec-thumb"></div>`;
+
+    // Pick the 3 most relevant metrics based on funnel
+    let metrics;
+    if (c.funnel === 'awareness') {
+      metrics = [
+        ['CTR', fmt.pct(c.ctr)],
+        ['CPM', fmt.cents(c.cpm)],
+        ['Impressions', fmt.num(c.impressions)],
+      ];
+    } else if (c.funnel === 'consideration') {
+      metrics = [
+        ['CTR', fmt.pct(c.ctr)],
+        ['CPC', fmt.cents(c.cpc)],
+        ['Clicks', fmt.num(c.clicks)],
+      ];
+    } else {
+      metrics = [
+        ['ROAS', fmt.ratio(c.roas)],
+        ['CPA', fmt.cents(c.cpa)],
+        ['Revenue', fmt.money(c.revenue)],
+      ];
+    }
+
+    return `
+      <div class="rec-card rec-card-${c.action}">
+        <div class="rec-head">
+          ${thumbHtml}
+          <div class="rec-info">
+            <div class="rec-name"><a href="/creative.html?id=${c.id}">${escapeHtml(c.name)}</a></div>
+            <div class="rec-meta">
+              <span class="chip">${c.funnel}</span>
+              <span>${c.format}${c.asset_type ? ' / ' + c.asset_type.replace(/_/g, ' ') : ''}</span>
+            </div>
+          </div>
+          <span class="rec-badge rec-badge-${c.action}">${ACTION_LABEL[c.action]}</span>
+        </div>
+        <div class="rec-rationale">${escapeHtml(c.rationale)}</div>
+        <div class="rec-metrics">
+          ${metrics.map(([l, v]) => `<div class="rec-metric"><div class="rec-metric-val">${v}</div><div class="rec-metric-label">${l}</div></div>`).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--muted)">${fmt.money(c.spend)} total spend</div>
+      </div>`;
+  }).join('');
+}
+
+// ── Recommendation events ──
+
+document.querySelectorAll('#rec-action-seg .seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#rec-action-seg .seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.recAction = btn.dataset.a;
+    renderRecCards();
+  });
+});
+
+document.getElementById('rec-funnel-filter').addEventListener('change', e => {
+  state.recFunnel = e.target.value;
+  renderRecCards();
 });
 
 // Init: load date range then data.
