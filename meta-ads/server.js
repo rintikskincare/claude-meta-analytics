@@ -9,6 +9,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.html')));
 app.get('/accounts.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'accounts.html')));
 app.get('/creatives.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'creatives.html')));
+app.get('/analytics.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'analytics.html')));
 
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/accounts', require('./routes/accounts'));

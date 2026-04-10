@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Analytics — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Win Rate Analysis</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html" class="active">Analytics</a>
+      <a href="/compare.html">Compare</a>
+    </nav>
+  </header>
+  <main>
+    <!-- Controls -->
+    <div class="toolbar">
+      <label>From <input type="date" id="from"></label>
+      <label>To <input type="date" id="to"></label>
+      <label>ROAS Threshold <input type="number" id="threshold" step="0.1" min="0" style="width:80px"></label>
+      <button id="apply" class="primary">Apply</button>
+      <span style="flex:1"></span>
+      <span id="status" class="muted small"></span>
+    </div>
+
+    <!-- Summary KPIs -->
+    <div class="kpi-grid" id="kpis"></div>
+
+    <!-- Funnel breakdown -->
+    <div class="section-title">Win Rate by Funnel Stage</div>
+    <div id="funnel-cards" class="wr-funnel-grid"></div>
+
+    <!-- Creative table -->
+    <div class="section-title">
+      Creative Scoreboard
+      <span class="muted small" style="text-transform:none;letter-spacing:0"> — sorted by score within funnel</span>
+    </div>
+    <div id="filter-bar" class="controls-row" style="margin-bottom:12px">
+      <div class="seg" id="verdict-seg">
+        <button class="seg-btn active" data-v="all">All</button>
+        <button class="seg-btn" data-v="winners">Winners</button>
+        <button class="seg-btn" data-v="losers">Losers</button>
+      </div>
+      <select id="funnel-filter" class="ctl" style="margin-left:8px">
+        <option value="">All funnels</option>
+      </select>
+    </div>
+    <table id="scoreboard">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Creative</th>
+          <th>Funnel</th>
+          <th class="num" data-sort="score">Score</th>
+          <th class="num" data-sort="spend">Spend</th>
+          <th class="num" data-sort="revenue">Revenue</th>
+          <th class="num" data-sort="roas">ROAS</th>
+          <th class="num" data-sort="ctr">CTR</th>
+          <th class="num" data-sort="cpa">CPA</th>
+          <th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="empty" class="empty-state" style="display:none">
+      <div class="empty-icon">&#128200;</div>
+      <div class="empty-title">No delivery data</div>
+      <div class="empty-sub">Import data or sync an account first to see win rate analysis.</div>
+    </div>
+  </main>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/analytics.js"></script>
+</body>
+</html>

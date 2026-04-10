@@ -143,4 +143,118 @@ function fatigueAlerts({ minSpend = 100 } = {}) {
     .sort((a, b) => b.drop - a.drop);
 }
 
-module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts };
+// Win Rate Analysis — funnel-aware creative scoring.
+//
+// Scoring rules by funnel stage:
+//   TOF (awareness)    → engagement score: CTR weight
+//   MOF (consideration)→ consideration: CTR + CPC efficiency
+//   BOF (conversion)   → conversion:    ROAS >= threshold
+//   Unknown / all      → blended ROAS vs threshold
+//
+// A creative is a "winner" when its funnel-appropriate score beats
+// the relevant threshold. The API returns per-creative verdicts plus
+// aggregate summary stats.
+
+function winRateAnalysis({ from, to, roasThreshold } = {}) {
+  const settings = require('./settings');
+  const threshold = roasThreshold ?? settings.get('winner_roas_threshold');
+
+  const { where, params } = dateClause(from, to);
+
+  // Pull every creative that had delivery in the window.
+  const rows = db.prepare(`
+    SELECT c.id, c.name, c.format, c.thumbnail_url,
+           c.funnel_stage, c.asset_type, c.messaging_angle,
+           SUM(i.spend)       spend,
+           SUM(i.impressions) impressions,
+           SUM(i.clicks)      clicks,
+           SUM(i.purchases)   purchases,
+           SUM(i.revenue)     revenue
+    FROM creatives c
+    JOIN ads a ON a.creative_id = c.id
+    JOIN insights i ON i.ad_id = a.id
+    ${where}
+    GROUP BY c.id
+    HAVING spend > 0
+  `).all(params);
+
+  // Derive full KPIs for each creative and assign funnel-aware win status.
+  const creatives = rows.map(r => {
+    const kpis = deriveKpis(r);
+    const funnel = (r.funnel_stage || 'unknown').toLowerCase();
+    let score, scoreLabel, isWinner;
+
+    if (funnel === 'awareness') {
+      // TOF: engagement-based — CTR above median is a win.
+      // We use a fixed CTR threshold of 1% as the engagement bar.
+      score = kpis.ctr;
+      scoreLabel = 'CTR';
+      isWinner = kpis.ctr >= 0.01;
+    } else if (funnel === 'consideration') {
+      // MOF: consideration efficiency — good CTR AND reasonable CPC.
+      // Win if CTR >= 0.8% AND CPC is under the overall average CPC
+      // (we approximate with a $3 CPC ceiling as a sensible default).
+      score = kpis.ctr;
+      scoreLabel = 'CTR + CPC';
+      isWinner = kpis.ctr >= 0.008 && (kpis.cpc <= 3 || kpis.clicks === 0);
+    } else if (funnel === 'conversion' || funnel === 'retention') {
+      // BOF: hard ROAS gate.
+      score = kpis.roas;
+      scoreLabel = 'ROAS';
+      isWinner = kpis.roas >= threshold;
+    } else {
+      // Unknown funnel stage → fall back to blended ROAS threshold.
+      score = kpis.roas;
+      scoreLabel = 'ROAS';
+      isWinner = kpis.roas >= threshold;
+    }
+
+    return {
+      ...r, ...kpis,
+      funnel, score, scoreLabel, isWinner,
+    };
+  });
+
+  // Aggregate summaries.
+  const winners = creatives.filter(c => c.isWinner);
+  const losers  = creatives.filter(c => !c.isWinner);
+
+  const sumField = (arr, f) => arr.reduce((s, r) => s + (r[f] || 0), 0);
+  const safeAvg  = (arr, f) => arr.length ? sumField(arr, f) / arr.length : 0;
+
+  const totalSpend   = sumField(creatives, 'spend');
+  const totalRevenue = sumField(creatives, 'revenue');
+
+  // Per-funnel breakdown.
+  const funnels = {};
+  for (const c of creatives) {
+    if (!funnels[c.funnel]) funnels[c.funnel] = { total: 0, winners: 0, spend: 0, revenue: 0 };
+    funnels[c.funnel].total++;
+    funnels[c.funnel].spend += c.spend;
+    funnels[c.funnel].revenue += c.revenue;
+    if (c.isWinner) funnels[c.funnel].winners++;
+  }
+  for (const f of Object.values(funnels)) {
+    f.winRate = safe(f.winners, f.total);
+    f.roas    = safe(f.revenue, f.spend);
+  }
+
+  return {
+    summary: {
+      total:        creatives.length,
+      winners:      winners.length,
+      losers:       losers.length,
+      winRate:      safe(winners.length, creatives.length),
+      totalSpend:   totalSpend,
+      totalRevenue: totalRevenue,
+      blendedRoas:  safe(totalRevenue, totalSpend),
+      avgRoasWinners: safeAvg(winners, 'roas'),
+      avgRoasLosers:  safeAvg(losers, 'roas'),
+      roasThreshold:  threshold,
+    },
+    funnels,
+    creatives,
+  };
+}
+
+module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts, winRateAnalysis };

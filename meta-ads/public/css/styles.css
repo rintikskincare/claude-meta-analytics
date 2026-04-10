@@ -382,3 +382,14 @@ button.danger:hover { opacity: 0.9; }
 
 /* Loading state inside modal */
 .dm-loading .skel-row { border: none; border-radius: 8px; }
+
+/* =========== Analytics — Win Rate =========== */
+.wr-funnel-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px; margin-bottom: 24px;
+}
+.wr-funnel-card { display: flex; flex-direction: column; gap: 8px; }
+.wr-funnel-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+.wr-funnel-stat { display: flex; align-items: baseline; gap: 8px; }
+.wr-funnel-big { font-size: 28px; font-weight: 700; }
+.wr-funnel-row { display: flex; justify-content: space-between; font-size: 12px; }
