@@ -1,6 +1,35 @@
 const express = require('express');
 const db = require('../db');
 const { creativeDetail, deriveKpis } = require('../services/metrics');
+const gemini = require('../services/gemini');
+
+const applyAnalysis = db.prepare(`
+  UPDATE creatives SET
+    analysis_status = 'analyzed',
+    asset_type      = @asset_type,
+    visual_format   = @visual_format,
+    messaging_angle = @messaging_angle,
+    hook_tactic     = @hook_tactic,
+    offer_type      = @offer_type,
+    funnel_stage    = @funnel_stage,
+    summary         = @summary,
+    analyzed_at     = datetime('now'),
+    analysis_error  = NULL
+  WHERE id = @id
+`);
+
+const markAnalysisError = db.prepare(`
+  UPDATE creatives SET analysis_status = 'error', analysis_error = @error WHERE id = @id
+`);
+
+async function runAnalysis(id, creative) {
+  try {
+    const tags = await gemini.analyzeCreative(creative);
+    applyAnalysis.run({ id, ...tags });
+  } catch (e) {
+    markAnalysisError.run({ id, error: String(e.message || e).slice(0, 500) });
+  }
+}
 
 const router = express.Router();
 
@@ -120,9 +149,39 @@ router.get('/filter-options', (req, res) => {
     ad_type:         scoped('ad_type'),
     analysis_status: scoped('analysis_status'),
     asset_type:      scoped('asset_type'),
+    visual_format:   scoped('visual_format'),
     messaging_angle: scoped('messaging_angle'),
+    hook_tactic:     scoped('hook_tactic'),
+    offer_type:      scoped('offer_type'),
     funnel_stage:    scoped('funnel_stage'),
   });
+});
+
+// Batch-analyze multiple creatives. Accepts {ids: [1,2,3]} or {} for all
+// pending. Runs sequentially to stay within Gemini rate limits.
+// NOTE: registered BEFORE /:id so the route isn't swallowed.
+router.post('/analyze-batch', express.json(), async (req, res) => {
+  let ids = (req.body && req.body.ids) || null;
+  if (ids && !Array.isArray(ids)) return res.status(400).json({ error: 'ids must be an array' });
+  if (!ids) {
+    ids = db.prepare(`SELECT id FROM creatives WHERE analysis_status IN ('pending','error') ORDER BY id`)
+      .all().map(r => r.id);
+  }
+  if (!ids.length) return res.json({ ok: true, requested: 0, results: [] });
+
+  // Mark all as analyzing up-front so the UI can reflect immediately.
+  const markStmt = db.prepare(`UPDATE creatives SET analysis_status = 'analyzing', analysis_error = NULL WHERE id = ?`);
+  for (const id of ids) markStmt.run(id);
+
+  res.json({ ok: true, requested: ids.length, analysis_status: 'analyzing' });
+
+  // Run sequentially in background.
+  (async () => {
+    for (const id of ids) {
+      const row = db.prepare('SELECT * FROM creatives WHERE id = ?').get(id);
+      if (row) await runAnalysis(id, row).catch(() => {});
+    }
+  })();
 });
 
 router.get('/:id', (req, res) => {
@@ -132,28 +191,17 @@ router.get('/:id', (req, res) => {
   res.json(data);
 });
 
-// Trigger (re-)analysis. Sets status to 'analyzing' and returns immediately;
-// the actual AI analysis is plugged in later. On completion the caller (or a
-// background worker) sets status to 'analyzed' and populates the AI-tag
-// columns (messaging_angle, funnel_stage, asset_type, ad_type).
+// Analyze a single creative via Gemini. Sets status to 'analyzing', calls
+// the API asynchronously, then writes the structured tags back.
 router.post('/:id/analyze', (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const row = db.prepare('SELECT id, analysis_status FROM creatives WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM creatives WHERE id = ?').get(id);
   if (!row) return res.status(404).json({ error: 'not found' });
-  db.prepare(`UPDATE creatives SET analysis_status = 'analyzing' WHERE id = ?`).run(id);
-  // In production this would enqueue an async job. For now we simulate a
-  // short delay then mark analyzed with placeholder tags.
-  setTimeout(() => {
-    db.prepare(`
-      UPDATE creatives SET analysis_status = 'analyzed',
-             ad_type         = COALESCE(ad_type, 'direct_response'),
-             asset_type      = COALESCE(asset_type, format),
-             messaging_angle = COALESCE(messaging_angle, 'general'),
-             funnel_stage    = COALESCE(funnel_stage, 'consideration')
-       WHERE id = ?
-    `).run(id);
-  }, 1500);
+  db.prepare(`UPDATE creatives SET analysis_status = 'analyzing', analysis_error = NULL WHERE id = ?`).run(id);
   res.json({ ok: true, analysis_status: 'analyzing' });
+
+  // Fire-and-forget: run the Gemini call and write results.
+  runAnalysis(id, row).catch(() => {});
 });
 
 router.post('/:id/tags', express.json(), (req, res) => {

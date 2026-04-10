@@ -350,22 +350,36 @@ function renderDetail(data) {
 
   // ── AI tags ──
   const aiFields = [
-    ['Ad type',   c.ad_type],
-    ['Asset type', c.asset_type],
-    ['Angle',     c.messaging_angle],
-    ['Funnel',    c.funnel_stage],
+    ['Asset type',   c.asset_type],
+    ['Visual format',c.visual_format],
+    ['Angle',        c.messaging_angle],
+    ['Hook tactic',  c.hook_tactic],
+    ['Offer type',   c.offer_type],
+    ['Funnel',       c.funnel_stage],
   ];
   const hasTags = aiFields.some(([, v]) => v);
-  $('#dm-tags').innerHTML = hasTags
-    ? `<div class="dm-tag-grid">${aiFields.map(([l, v]) =>
-        `<div class="dm-tag-item">
-          <span class="dm-tag-label">${l}</span>
-          <span class="chip">${v ? label(v) : '<span class="muted">—</span>'}</span>
-        </div>`
-      ).join('')}</div>`
-    : `<div class="dm-no-tags">
-        <span class="muted">No AI tags yet.</span> Click Analyze to classify this creative.
-      </div>`;
+  let tagsHtmlStr = '';
+  if (hasTags) {
+    tagsHtmlStr += `<div class="dm-tag-grid">${aiFields.map(([l, v]) =>
+      `<div class="dm-tag-item">
+        <span class="dm-tag-label">${l}</span>
+        <span class="chip">${v ? label(v) : '<span class="muted">—</span>'}</span>
+      </div>`
+    ).join('')}</div>`;
+    if (c.summary) {
+      tagsHtmlStr += `<div class="dm-summary">${esc(c.summary)}</div>`;
+    }
+    if (c.analyzed_at) {
+      tagsHtmlStr += `<div class="dm-analyzed-at">Analyzed ${esc(c.analyzed_at.slice(0, 16).replace('T', ' '))}</div>`;
+    }
+  } else if (c.analysis_status === 'error' && c.analysis_error) {
+    tagsHtmlStr = `<div class="dm-no-tags dm-error">Analysis failed: ${esc(c.analysis_error)}</div>`;
+  } else {
+    tagsHtmlStr = `<div class="dm-no-tags">
+      <span class="muted">No AI tags yet.</span> Click Analyze to classify this creative.
+    </div>`;
+  }
+  $('#dm-tags').innerHTML = tagsHtmlStr;
 
   // ── Manual tags ──
   const manualTags = data.tags || [];

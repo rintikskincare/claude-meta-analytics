@@ -160,6 +160,12 @@ const ADD_IF_MISSING = {
     ['asset_type',           `ALTER TABLE creatives ADD COLUMN asset_type TEXT`],
     ['messaging_angle',      `ALTER TABLE creatives ADD COLUMN messaging_angle TEXT`],
     ['funnel_stage',         `ALTER TABLE creatives ADD COLUMN funnel_stage TEXT`],
+    ['visual_format',        `ALTER TABLE creatives ADD COLUMN visual_format TEXT`],
+    ['hook_tactic',          `ALTER TABLE creatives ADD COLUMN hook_tactic TEXT`],
+    ['offer_type',           `ALTER TABLE creatives ADD COLUMN offer_type TEXT`],
+    ['summary',              `ALTER TABLE creatives ADD COLUMN summary TEXT`],
+    ['analyzed_at',          `ALTER TABLE creatives ADD COLUMN analyzed_at TEXT`],
+    ['analysis_error',       `ALTER TABLE creatives ADD COLUMN analysis_error TEXT`],
   ],
   ads: [
     ['ad_account_id',   `ALTER TABLE ads ADD COLUMN ad_account_id INTEGER REFERENCES ad_accounts(id) ON DELETE SET NULL`],
