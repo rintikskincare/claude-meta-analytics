@@ -1,18 +1,20 @@
-/* Reports tab — list, generate, view detail, delete */
+/* Reports tab — list, history, detail modal with comparison */
 
-const tbl       = document.getElementById('tbl');
-const tbody     = tbl.querySelector('tbody');
-const emptyEl   = document.getElementById('empty');
-const detailEl  = document.getElementById('detail');
-const modal     = document.getElementById('modal');
-const confirmEl = document.getElementById('confirm');
-const toastEl   = document.getElementById('toast');
-const genForm   = document.getElementById('gen-form');
-const genErr    = document.getElementById('gen-err');
-const acctSel   = document.getElementById('account-sel');
+const tbl         = document.getElementById('tbl');
+const tbody       = tbl.querySelector('tbody');
+const emptyEl     = document.getElementById('empty');
+const histSection = document.getElementById('history-section');
+const histTimeline = document.getElementById('history-timeline');
+const modal       = document.getElementById('modal');
+const confirmEl   = document.getElementById('confirm');
+const detailModal = document.getElementById('detail-modal');
+const toastEl     = document.getElementById('toast');
+const genForm     = document.getElementById('gen-form');
+const genErr      = document.getElementById('gen-err');
+const acctSel     = document.getElementById('account-sel');
 
 let pendingDelete = null;
-let currentView   = 'list'; // 'list' | 'detail'
+let allReports    = [];
 
 /* ── Helpers ─────────────────────────────────────────── */
 function esc(s) {
@@ -30,32 +32,40 @@ function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
 function statusBadge(s) {
   const cls = { done: 'badge-ok', error: 'badge-err', running: 'badge-run' }[s] || '';
   return `<span class="report-badge ${cls}">${esc(s)}</span>`;
 }
+function windowLabel(p) {
+  if (!p) return '—';
+  if (p.from && p.to) return `${p.from} → ${p.to}`;
+  return `${p.days || '—'} days`;
+}
 
 /* ── List ────────────────────────────────────────────── */
 async function loadList() {
-  currentView = 'list';
-  detailEl.style.display = 'none';
   try {
-    const rows = await api.get('/api/reports');
-    if (!rows.length) {
-      tbl.style.display  = 'none';
+    allReports = await api.get('/api/reports');
+    if (!allReports.length) {
+      tbl.style.display = 'none';
       emptyEl.style.display = 'block';
+      histSection.style.display = 'none';
       return;
     }
-    tbl.style.display  = 'table';
+    tbl.style.display = 'table';
     emptyEl.style.display = 'none';
 
-    tbody.innerHTML = rows.map(r => {
-      const p = r.params || {};
-      const window = p.from && p.to ? `${p.from} → ${p.to}` : `${p.days || '—'} days`;
+    tbody.innerHTML = allReports.map(r => {
       return `<tr>
         <td><a href="#" class="report-link" data-id="${r.id}">${esc(r.name)}</a></td>
         <td>${r.ad_account_id || 'All'}</td>
-        <td style="font-size:12px">${esc(window)}</td>
+        <td style="font-size:12px">${esc(windowLabel(r.params))}</td>
         <td>${statusBadge(r.status)}</td>
         <td style="font-size:12px">${fmtDate(r.created_at)}</td>
         <td style="text-align:right">
@@ -66,60 +76,147 @@ async function loadList() {
     }).join('');
 
     tbody.querySelectorAll('.report-link, [data-view]').forEach(el =>
-      el.addEventListener('click', e => { e.preventDefault(); viewReport(el.dataset.id || el.dataset.view); }));
+      el.addEventListener('click', e => { e.preventDefault(); openDetail(el.dataset.id || el.dataset.view); }));
     tbody.querySelectorAll('[data-del]').forEach(el =>
       el.addEventListener('click', () => askDelete(el.dataset.del, el.dataset.name)));
+
+    renderHistory();
   } catch (e) {
     showToast(e.message, 'error');
   }
 }
 
-/* ── Detail view ─────────────────────────────────────── */
-async function viewReport(id) {
+/* ── History Timeline ────────────────────────────────── */
+function renderHistory() {
+  const done = allReports.filter(r => r.status === 'done');
+  if (done.length < 2) {
+    histSection.style.display = 'none';
+    return;
+  }
+  histSection.style.display = 'block';
+  histTimeline.innerHTML = done.map((r, i) => `
+    <div class="rpt-tl-item" data-id="${r.id}">
+      <div class="rpt-tl-dot"></div>
+      <div class="rpt-tl-info">
+        <div class="rpt-tl-name">${esc(r.name)}</div>
+        <div class="rpt-tl-meta">${esc(windowLabel(r.params))} · ${fmtDateTime(r.created_at)}</div>
+      </div>
+      <div class="rpt-tl-badge">${i === 0 ? '<span class="report-badge badge-ok">latest</span>' : ''}</div>
+    </div>
+  `).join('');
+  histTimeline.querySelectorAll('.rpt-tl-item').forEach(el =>
+    el.addEventListener('click', () => openDetail(el.dataset.id)));
+}
+
+/* ── Detail Modal ────────────────────────────────────── */
+function openDetailModal() {
+  document.getElementById('rpt-dm-loading').style.display = 'block';
+  document.getElementById('rpt-dm-content').style.display = 'none';
+  detailModal.style.display = 'flex';
+}
+function closeDetailModal() { detailModal.style.display = 'none'; }
+
+document.getElementById('dm-rpt-close').addEventListener('click', closeDetailModal);
+detailModal.addEventListener('click', e => { if (e.target === detailModal) closeDetailModal(); });
+
+async function openDetail(id) {
+  openDetailModal();
   try {
-    const r = await api.get(`/api/reports/${id}`);
-    if (!r || !r.result) { showToast('Report has no result data', 'error'); return; }
-    currentView = 'detail';
-    tbl.style.display     = 'none';
-    emptyEl.style.display = 'none';
-    detailEl.style.display = 'block';
-
-    const res = r.result;
-    const w   = res.window || {};
-
-    // Meta line
-    document.getElementById('detail-meta').textContent =
-      `${res.accountName || 'All accounts'} · Generated ${fmtDate(res.generatedAt)}`;
-
-    // Window card
-    document.getElementById('detail-window').innerHTML =
-      `<div style="font-size:13px;color:var(--muted)">
-         Window: <strong>${esc(w.from)}</strong> to <strong>${esc(w.to)}</strong>
-         (${w.days} days) · ${res.creativesInWindow || 0} creatives
-       </div>`;
-
-    // KPIs
-    const t = res.totals || {};
-    document.getElementById('detail-kpis').innerHTML = [
-      kpiCard('Spend',       fmt.money(t.spend)),
-      kpiCard('Revenue',     fmt.money(t.revenue)),
-      kpiCard('ROAS',        fmt.ratio(t.roas)),
-      kpiCard('CTR',         fmt.pct(t.ctr)),
-      kpiCard('CPA',         fmt.cents(t.cpa)),
-      kpiCard('Impressions', fmt.num(t.impressions)),
-    ].join('');
-
-    // Top performers
-    renderPerformers('#top-table tbody', res.topPerformers || []);
-    // Bottom performers
-    renderPerformers('#bottom-table tbody', res.bottomPerformers || []);
+    const data = await api.get(`/api/reports/${id}`);
+    if (!data || !data.result) { showToast('Report has no result data', 'error'); closeDetailModal(); return; }
+    renderDetail(data, data.previous);
   } catch (e) {
     showToast(e.message, 'error');
+    closeDetailModal();
   }
 }
 
-function kpiCard(label, value) {
-  return `<div class="kpi"><div class="kpi-value">${value}</div><div class="kpi-label">${label}</div></div>`;
+function renderDetail(report, previous) {
+  document.getElementById('rpt-dm-loading').style.display = 'none';
+  document.getElementById('rpt-dm-content').style.display = 'block';
+
+  const res = report.result;
+  const prev = previous && previous.result ? previous.result : null;
+  const w = res.window || {};
+  const pw = prev ? (prev.window || {}) : null;
+
+  // Title
+  document.getElementById('dm-rpt-title').textContent = report.name || 'Report Detail';
+
+  // Window banner — always show dates
+  document.getElementById('rpt-dm-window').innerHTML =
+    `<div>Window: <strong>${esc(w.from || '—')}</strong> to <strong>${esc(w.to || '—')}</strong>` +
+    (w.days ? ` (${w.days} days)` : '') +
+    ` · ${res.creativesInWindow || 0} creatives</div>` +
+    `<div style="font-size:11px;margin-top:4px;opacity:0.7">${esc(res.accountName || 'All accounts')} · Generated ${fmtDateTime(res.generatedAt)}</div>`;
+
+  // Comparison header + previous window
+  const compareHdr = document.getElementById('rpt-dm-compare-hdr');
+  const noPrev = document.getElementById('rpt-dm-no-prev');
+  const prevWindow = document.getElementById('rpt-dm-prev-window');
+
+  if (prev) {
+    compareHdr.style.display = 'block';
+    noPrev.style.display = 'none';
+    prevWindow.style.display = 'block';
+    prevWindow.innerHTML = `Previous window: <strong>${esc(pw.from || '—')}</strong> to <strong>${esc(pw.to || '—')}</strong>` +
+      (pw.days ? ` (${pw.days} days)` : '') +
+      ` · Generated ${fmtDateTime(prev.generatedAt)}`;
+  } else {
+    compareHdr.style.display = 'none';
+    noPrev.style.display = 'block';
+    prevWindow.style.display = 'none';
+  }
+
+  // KPIs with comparison
+  const t = res.totals || {};
+  const pt = prev ? (prev.totals || {}) : null;
+
+  const kpis = [
+    { label: 'Spend',       key: 'spend',       format: fmt.money,  invert: true },
+    { label: 'Revenue',     key: 'revenue',      format: fmt.money,  invert: false },
+    { label: 'ROAS',        key: 'roas',         format: fmt.ratio,  invert: false },
+    { label: 'CTR',         key: 'ctr',          format: fmt.pct,    invert: false },
+    { label: 'CPA',         key: 'cpa',          format: fmt.cents,  invert: true },
+    { label: 'Impressions', key: 'impressions',  format: fmt.num,    invert: false },
+  ];
+
+  document.getElementById('rpt-dm-kpis').innerHTML = kpis.map(k => {
+    const cur = t[k.key] || 0;
+    const curStr = k.format(cur);
+    let deltaHtml = '';
+    let prevStr = '';
+
+    if (pt) {
+      const prv = pt[k.key] || 0;
+      prevStr = k.format(prv);
+      deltaHtml = deltaBadge(cur, prv, k.invert);
+    }
+
+    return `<div class="kpi rpt-kpi">
+      <div class="label">${k.label}</div>
+      <div class="rpt-kpi-row">
+        <span class="rpt-kpi-current">${curStr}</span>
+        ${pt ? `<span class="rpt-kpi-prev">${prevStr}</span>` : ''}
+      </div>
+      ${deltaHtml}
+    </div>`;
+  }).join('');
+
+  // Performers
+  renderPerformers('#top-table tbody', res.topPerformers || []);
+  renderPerformers('#bottom-table tbody', res.bottomPerformers || []);
+}
+
+function deltaBadge(cur, prev, invert) {
+  if (prev === 0 && cur === 0) return '<div class="rpt-kpi-delta rpt-kpi-delta-flat">—</div>';
+  if (prev === 0) return `<div class="rpt-kpi-delta rpt-kpi-delta-up${invert ? ' invert' : ''}">new</div>`;
+  const pct = ((cur - prev) / Math.abs(prev)) * 100;
+  const abs = Math.abs(pct);
+  if (abs < 0.5) return '<div class="rpt-kpi-delta rpt-kpi-delta-flat">0%</div>';
+  const dir = pct > 0 ? 'up' : 'down';
+  const arrow = pct > 0 ? '&#9650;' : '&#9660;';
+  return `<div class="rpt-kpi-delta rpt-kpi-delta-${dir}${invert ? ' invert' : ''}">${arrow} ${abs.toFixed(1)}%</div>`;
 }
 
 function renderPerformers(sel, list) {
@@ -137,14 +234,10 @@ function renderPerformers(sel, list) {
   </tr>`).join('');
 }
 
-/* ── Back button ─────────────────────────────────────── */
-document.getElementById('back-btn').addEventListener('click', loadList);
-
 /* ── Generate modal ──────────────────────────────────── */
 function openGenerate() {
   genForm.reset();
   genErr.style.display = 'none';
-  // Set default dates: last 30 days
   const today = new Date();
   const from  = new Date(today);
   from.setDate(from.getDate() - 30);
@@ -215,7 +308,7 @@ confirmEl.addEventListener('click', e => { if (e.target === confirmEl) { confirm
 
 /* ── Keyboard ────────────────────────────────────────── */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeGenerate(); confirmEl.style.display = 'none'; }
+  if (e.key === 'Escape') { closeGenerate(); closeDetailModal(); confirmEl.style.display = 'none'; }
 });
 
 /* ── Populate account dropdown ───────────────────────── */

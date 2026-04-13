@@ -512,3 +512,77 @@ button.danger:hover { opacity: 0.9; }
 .report-badge.badge-run { background: rgba(79,140,255,0.15); color: var(--accent); }
 .report-link { color: var(--accent); text-decoration: none; font-weight: 500; }
 .report-link:hover { text-decoration: underline; }
+
+/* Report detail modal */
+.rpt-detail-modal { max-width: 720px; max-height: 90vh; display: flex; flex-direction: column; }
+.rpt-dm-body { overflow-y: auto; }
+
+/* Window banners */
+.rpt-window-banner {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: var(--muted);
+}
+.rpt-window-banner strong { color: var(--text); }
+.rpt-prev-window {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 16px; font-size: 12px; color: var(--muted);
+}
+
+/* Comparison header */
+.rpt-compare-hdr { margin-bottom: 8px; }
+.rpt-compare-cols { display: flex; gap: 12px; }
+.rpt-col-label {
+  flex: 1; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; padding: 6px 0;
+}
+.rpt-col-current { color: var(--accent); }
+.rpt-col-previous { color: var(--muted); }
+
+/* KPI with delta */
+.rpt-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+.rpt-kpi { position: relative; }
+.rpt-kpi-row { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+.rpt-kpi-current { font-size: 22px; font-weight: 600; }
+.rpt-kpi-prev { font-size: 13px; color: var(--muted); }
+.rpt-kpi-delta {
+  display: inline-flex; align-items: center; gap: 2px;
+  font-size: 11px; font-weight: 600; padding: 1px 6px;
+  border-radius: 4px; margin-top: 4px;
+}
+.rpt-kpi-delta-up   { background: rgba(74,222,128,0.12); color: var(--good); }
+.rpt-kpi-delta-down { background: rgba(248,113,113,0.12); color: var(--bad); }
+.rpt-kpi-delta-flat { background: var(--panel-2); color: var(--muted); }
+/* Invert coloring for cost metrics where lower is better */
+.rpt-kpi-delta-up.invert   { background: rgba(248,113,113,0.12); color: var(--bad); }
+.rpt-kpi-delta-down.invert { background: rgba(74,222,128,0.12); color: var(--good); }
+
+/* No-previous empty state */
+.rpt-no-prev {
+  text-align: center; padding: 24px 16px; margin-bottom: 16px;
+  background: var(--panel-2); border: 1px dashed var(--border); border-radius: 8px;
+}
+.rpt-no-prev-icon { font-size: 28px; color: var(--muted); margin-bottom: 8px; }
+.rpt-no-prev-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.rpt-no-prev-sub { font-size: 12px; color: var(--muted); line-height: 1.5; max-width: 360px; margin: 0 auto; }
+
+/* Report history timeline */
+.rpt-timeline { display: flex; flex-direction: column; gap: 0; margin-bottom: 24px; }
+.rpt-tl-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-left: 2px solid var(--border); cursor: pointer; transition: background 0.1s;
+}
+.rpt-tl-item:hover { background: var(--panel-2); }
+.rpt-tl-item:first-child { border-left-color: var(--accent); }
+.rpt-tl-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0;
+}
+.rpt-tl-item:first-child .rpt-tl-dot { background: var(--accent); }
+.rpt-tl-info { flex: 1; min-width: 0; }
+.rpt-tl-name {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rpt-tl-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rpt-tl-badge { flex-shrink: 0; }
+
+@media (max-width: 600px) { .rpt-kpi-grid { grid-template-columns: 1fr 1fr; } }

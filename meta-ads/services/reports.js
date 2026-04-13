@@ -174,9 +174,27 @@ function getReport(id) {
   return deserialize(db.prepare('SELECT * FROM reports WHERE id = ?').get(id));
 }
 
+// Find the most recent completed report before the given one,
+// scoped to the same account (or all-accounts if accountId is null).
+// Uses id < @id since SQLite rowids are monotonically increasing and
+// created_at only has second precision (two fast inserts share a timestamp).
+function getPreviousReport(id) {
+  const current = db.prepare('SELECT ad_account_id FROM reports WHERE id = ?').get(id);
+  if (!current) return null;
+  const acctClause = current.ad_account_id != null
+    ? 'AND ad_account_id = @accountId'
+    : 'AND ad_account_id IS NULL';
+  const row = db.prepare(`
+    SELECT * FROM reports
+    WHERE id < @id AND status = 'done' ${acctClause}
+    ORDER BY id DESC LIMIT 1
+  `).get({ id, accountId: current.ad_account_id });
+  return deserialize(row);
+}
+
 function deleteReport(id) {
   const info = db.prepare('DELETE FROM reports WHERE id = ?').run(id);
   return info.changes > 0;
 }
 
-module.exports = { generateSnapshot, listReports, getReport, deleteReport };
+module.exports = { generateSnapshot, listReports, getReport, getPreviousReport, deleteReport };

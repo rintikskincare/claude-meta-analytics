@@ -52,49 +52,10 @@
       <button id="gen-empty-btn" class="primary">+ Generate Report</button>
     </div>
 
-    <!-- Report detail panel (shown when viewing a report) -->
-    <div id="detail" style="display:none">
-      <div class="controls-row" style="margin-bottom:16px">
-        <button id="back-btn" class="ctl-btn">&larr; Back to list</button>
-        <span style="flex:1"></span>
-        <span id="detail-meta" class="muted small"></span>
-      </div>
-
-      <div id="detail-window" class="card" style="margin-bottom:16px"></div>
-      <div class="kpi-grid" id="detail-kpis"></div>
-
-      <div class="layout-2">
-        <div>
-          <div class="section-title">Top Performers</div>
-          <table id="top-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Creative</th>
-                <th class="num">Spend</th>
-                <th class="num">Revenue</th>
-                <th class="num">ROAS</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <div>
-          <div class="section-title">Bottom Performers</div>
-          <table id="bottom-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Creative</th>
-                <th class="num">Spend</th>
-                <th class="num">Revenue</th>
-                <th class="num">ROAS</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
+    <!-- Report history section (shown below the list) -->
+    <div id="history-section" style="display:none">
+      <div class="section-title">Report History</div>
+      <div id="history-timeline" class="rpt-timeline"></div>
     </div>
   </main>
 
@@ -152,6 +113,74 @@
         <div class="modal-actions">
           <button type="button" id="confirm-cancel">Cancel</button>
           <button type="button" id="confirm-ok" class="danger">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report detail modal -->
+  <div id="detail-modal" class="modal-overlay" style="display:none">
+    <div class="modal rpt-detail-modal">
+      <div class="modal-head">
+        <div style="font-size:16px;font-weight:600" id="dm-rpt-title"></div>
+        <button class="icon-btn" id="dm-rpt-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body rpt-dm-body">
+        <!-- Loading -->
+        <div id="rpt-dm-loading">
+          <div class="skel-row" style="height:40px"></div>
+          <div class="skel-row" style="height:16px;width:60%;margin-top:12px"></div>
+        </div>
+
+        <!-- Content -->
+        <div id="rpt-dm-content" style="display:none">
+          <!-- Window banner -->
+          <div id="rpt-dm-window" class="rpt-window-banner"></div>
+
+          <!-- Comparison toggle -->
+          <div id="rpt-dm-compare-hdr" class="rpt-compare-hdr" style="display:none">
+            <div class="rpt-compare-cols">
+              <div class="rpt-col-label rpt-col-current">Current Snapshot</div>
+              <div class="rpt-col-label rpt-col-previous">Previous Snapshot</div>
+            </div>
+          </div>
+
+          <!-- KPI grid with deltas -->
+          <div id="rpt-dm-kpis" class="kpi-grid rpt-kpi-grid"></div>
+
+          <!-- Previous snapshot empty state -->
+          <div id="rpt-dm-no-prev" class="rpt-no-prev" style="display:none">
+            <div class="rpt-no-prev-icon">&#128202;</div>
+            <div class="rpt-no-prev-title">No previous snapshot</div>
+            <div class="rpt-no-prev-sub">This is the first report for this account/scope. Generate another snapshot later to see period-over-period comparison.</div>
+          </div>
+
+          <!-- Previous window dates (when previous exists) -->
+          <div id="rpt-dm-prev-window" class="rpt-prev-window" style="display:none"></div>
+
+          <!-- Top / Bottom performers -->
+          <div class="layout-2">
+            <div>
+              <div class="section-title">Top Performers</div>
+              <table id="top-table">
+                <thead><tr>
+                  <th></th><th>Creative</th>
+                  <th class="num">Spend</th><th class="num">Revenue</th><th class="num">ROAS</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div>
+              <div class="section-title">Bottom Performers</div>
+              <table id="bottom-table">
+                <thead><tr>
+                  <th></th><th>Creative</th>
+                  <th class="num">Spend</th><th class="num">Revenue</th><th class="num">ROAS</th>
+                </tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>

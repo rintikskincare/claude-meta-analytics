@@ -1,5 +1,5 @@
 const express = require('express');
-const { generateSnapshot, listReports, getReport, deleteReport } = require('../services/reports');
+const { generateSnapshot, listReports, getReport, getPreviousReport, deleteReport } = require('../services/reports');
 
 const router = express.Router();
 
@@ -10,11 +10,12 @@ router.get('/', (req, res) => {
   res.json(listReports({ accountId, limit }));
 });
 
-// GET /api/reports/:id — fetch a single report with full result.
+// GET /api/reports/:id — fetch a single report with full result + optional previous.
 router.get('/:id', (req, res) => {
   const report = getReport(Number(req.params.id));
   if (!report) return res.status(404).json({ error: 'report not found' });
-  res.json(report);
+  const previous = getPreviousReport(Number(req.params.id));
+  res.json({ ...report, previous: previous || null });
 });
 
 // POST /api/reports/generate — create a new snapshot report.
