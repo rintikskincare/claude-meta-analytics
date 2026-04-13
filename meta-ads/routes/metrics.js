@@ -1,5 +1,5 @@
 const express = require('express');
-const { totals, creativeLeaderboard, fatigueAlerts, winRateAnalysis, recommendations } = require('../services/metrics');
+const { totals, creativeLeaderboard, fatigueAlerts, winRateAnalysis, recommendations, iterationPriorities } = require('../services/metrics');
 
 const router = express.Router();
 
@@ -29,6 +29,13 @@ router.get('/recommendations', (req, res) => {
   const roasThreshold = req.query.threshold != null ? parseFloat(req.query.threshold) : undefined;
   const minSpend = req.query.min_spend != null ? parseFloat(req.query.min_spend) : undefined;
   res.json(recommendations({ from, to, roasThreshold, minSpend }));
+});
+
+router.get('/iterations', (req, res) => {
+  const { from, to } = req.query;
+  const roasThreshold = req.query.threshold != null ? parseFloat(req.query.threshold) : undefined;
+  const minSpend = req.query.min_spend != null ? parseFloat(req.query.min_spend) : undefined;
+  res.json(iterationPriorities({ from, to, roasThreshold, minSpend }));
 });
 
 module.exports = router;

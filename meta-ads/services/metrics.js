@@ -398,4 +398,191 @@ function recommendations({ from, to, roasThreshold, minSpend } = {}) {
 // Tiny helper — format dollars without needing the browser's fmt object.
 function fmt_money(n) { return '$' + (n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
-module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts, winRateAnalysis, recommendations };
+// Iteration Priorities — score opportunities by weakness + spend impact.
+//
+// For each creative with meaningful spend, we identify the primary
+// performance weakness (funnel-aware), compute a priority score that
+// weights weakness severity by spend (bigger spend = higher urgency),
+// and suggest a concrete "next test" action.
+//
+// Priority score = weaknessScore (0-1) x spendWeight (0-1) x 100
+//   weaknessScore: how far below the ideal the key metric falls
+//   spendWeight:   creative's share of total spend (normalised)
+//
+// Only creatives above the min-spend threshold are included so early
+// learners don't pollute the list.
+
+function iterationPriorities({ from, to, roasThreshold, minSpend } = {}) {
+  const settings = require('./settings');
+  const threshold  = roasThreshold ?? settings.get('winner_roas_threshold');
+  const spendFloor = minSpend ?? settings.get('iteration_spend_threshold');
+
+  const { where, params } = dateClause(from, to);
+
+  const rows = db.prepare(`
+    SELECT c.id, c.name, c.format, c.thumbnail_url,
+           c.funnel_stage, c.asset_type, c.messaging_angle, c.hook_tactic,
+           c.visual_format, c.offer_type,
+           SUM(i.spend)       spend,
+           SUM(i.impressions) impressions,
+           SUM(i.clicks)      clicks,
+           SUM(i.purchases)   purchases,
+           SUM(i.revenue)     revenue
+    FROM creatives c
+    JOIN ads a ON a.creative_id = c.id
+    JOIN insights i ON i.ad_id = a.id
+    ${where}
+    GROUP BY c.id
+    HAVING spend >= @spendFloor
+  `).all({ ...params, spendFloor });
+
+  if (!rows.length) {
+    return { summary: { total: 0, totalSpend: 0, roasThreshold: threshold, spendFloor }, priorities: [] };
+  }
+
+  const maxSpend = Math.max(...rows.map(r => r.spend));
+
+  const priorities = rows.map(r => {
+    const kpis = deriveKpis(r);
+    const funnel = (r.funnel_stage || 'unknown').toLowerCase();
+
+    // Identify weaknesses — each entry: { dimension, metric, actual, target, gap, suggestion }
+    const weaknesses = [];
+
+    if (funnel === 'awareness') {
+      if (kpis.ctr < 0.015) {
+        const gap = safe(0.015 - kpis.ctr, 0.015); // 0-1
+        weaknesses.push({
+          dimension: 'engagement', metric: 'CTR', actual: kpis.ctr, target: 0.015,
+          gap, suggestion: suggestForWeakness('ctr', r),
+        });
+      }
+      if (kpis.cpm > 15) {
+        const gap = Math.min(safe(kpis.cpm - 15, kpis.cpm), 1);
+        weaknesses.push({
+          dimension: 'efficiency', metric: 'CPM', actual: kpis.cpm, target: 15,
+          gap, suggestion: suggestForWeakness('cpm', r),
+        });
+      }
+    } else if (funnel === 'consideration') {
+      if (kpis.ctr < 0.01) {
+        const gap = safe(0.01 - kpis.ctr, 0.01);
+        weaknesses.push({
+          dimension: 'engagement', metric: 'CTR', actual: kpis.ctr, target: 0.01,
+          gap, suggestion: suggestForWeakness('ctr', r),
+        });
+      }
+      if (kpis.cpc > 2) {
+        const gap = Math.min(safe(kpis.cpc - 2, kpis.cpc), 1);
+        weaknesses.push({
+          dimension: 'cost', metric: 'CPC', actual: kpis.cpc, target: 2,
+          gap, suggestion: suggestForWeakness('cpc', r),
+        });
+      }
+    } else {
+      // conversion / retention / unknown — ROAS and CPA
+      if (kpis.roas < threshold) {
+        const gap = safe(threshold - kpis.roas, threshold);
+        weaknesses.push({
+          dimension: 'return', metric: 'ROAS', actual: kpis.roas, target: threshold,
+          gap, suggestion: suggestForWeakness('roas', r),
+        });
+      }
+      if (kpis.purchases > 0 && kpis.cpa > 50) {
+        const gap = Math.min(safe(kpis.cpa - 50, kpis.cpa), 1);
+        weaknesses.push({
+          dimension: 'acquisition', metric: 'CPA', actual: kpis.cpa, target: 50,
+          gap, suggestion: suggestForWeakness('cpa', r),
+        });
+      }
+    }
+
+    // Cross-funnel: if CTR is very low, always flag it
+    if (funnel !== 'awareness' && kpis.ctr < 0.005) {
+      const gap = safe(0.005 - kpis.ctr, 0.005);
+      if (!weaknesses.find(w => w.metric === 'CTR')) {
+        weaknesses.push({
+          dimension: 'engagement', metric: 'CTR', actual: kpis.ctr, target: 0.005,
+          gap, suggestion: suggestForWeakness('ctr', r),
+        });
+      }
+    }
+
+    // No weaknesses? This creative is solid — still include with score 0.
+    const primaryWeakness = weaknesses.sort((a, b) => b.gap - a.gap)[0] || null;
+    const weaknessScore = primaryWeakness ? primaryWeakness.gap : 0;
+    const spendWeight = safe(r.spend, maxSpend);
+    const priority = Math.round(weaknessScore * spendWeight * 100);
+
+    return {
+      ...r, ...kpis, funnel,
+      priority,
+      weaknessScore: Math.round(weaknessScore * 100),
+      spendWeight: Math.round(spendWeight * 100),
+      primaryWeakness,
+      weaknesses,
+      nextTest: primaryWeakness ? primaryWeakness.suggestion : 'No clear weakness — consider scaling this creative.',
+    };
+  });
+
+  // Sort by priority desc (highest urgency first).
+  priorities.sort((a, b) => b.priority - a.priority);
+
+  const sumField = (arr, f) => arr.reduce((s, r) => s + (r[f] || 0), 0);
+  const totalSpend = sumField(priorities, 'spend');
+  const atRiskSpend = sumField(priorities.filter(p => p.priority >= 50), 'spend');
+
+  return {
+    summary: {
+      total:       priorities.length,
+      totalSpend,
+      atRiskCount: priorities.filter(p => p.priority >= 50).length,
+      atRiskSpend,
+      avgPriority: priorities.length ? Math.round(sumField(priorities, 'priority') / priorities.length) : 0,
+      roasThreshold: threshold,
+      spendFloor,
+    },
+    priorities,
+  };
+}
+
+// Generate actionable "next test" suggestions based on the specific
+// weakness and the creative's existing attributes.
+function suggestForWeakness(metric, creative) {
+  const hook = creative.hook_tactic ? creative.hook_tactic.replace(/_/g, ' ') : null;
+  const angle = creative.messaging_angle ? creative.messaging_angle.replace(/_/g, ' ') : null;
+  const format = creative.visual_format ? creative.visual_format.replace(/_/g, ' ') : null;
+  const asset = creative.asset_type ? creative.asset_type.replace(/_/g, ' ') : null;
+
+  switch (metric) {
+    case 'ctr':
+      if (hook === 'none' || !hook)
+        return 'Test a stronger hook — try a question, bold claim, or pain point opener to stop the scroll.';
+      if (asset === 'static graphic' || asset === 'lifestyle photo')
+        return `Static "${asset}" may lack scroll-stopping power. Test a video or motion graphic variant with the same messaging.`;
+      return `Current hook ("${hook}") isn't driving clicks. A/B test with a different hook tactic — curiosity gap or social proof often lift CTR.`;
+
+    case 'cpc':
+      if (angle === 'discount' || angle === 'urgency')
+        return 'Discount/urgency angles can attract low-intent clicks. Test an education or testimonial angle to attract more qualified traffic.';
+      return 'High CPC suggests audience mismatch. Test narrower interest targeting or a lookalike audience, and try a more specific call-to-action.';
+
+    case 'cpm':
+      return 'High CPM signals audience saturation or competition. Test a broader audience, different placement (Reels, Stories), or refresh the visual.';
+
+    case 'roas':
+      if (creative.offer_type === 'no_offer' || !creative.offer_type)
+        return 'No offer detected. Test adding a concrete offer (% off, free shipping, bundle) to improve conversion rate.';
+      if (creative.funnel_stage === 'awareness')
+        return 'Awareness creative being judged on ROAS — consider retargeting the engaged audience with a dedicated BOF variant.';
+      return `Current ROAS is below target. Test a stronger offer, social proof, or before/after creative to boost purchase intent.`;
+
+    case 'cpa':
+      return 'CPA is elevated. Test a shorter purchase path (single-product landing page), urgency elements, or a higher-converting offer type.';
+
+    default:
+      return 'Review creative performance and test a variant addressing the weakest metric.';
+  }
+}
+
+module.exports = { deriveKpis, totals, creativeLeaderboard, creativeDetail, fatigueAlerts, winRateAnalysis, recommendations, iterationPriorities };

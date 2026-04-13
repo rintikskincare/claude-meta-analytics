@@ -1,7 +1,8 @@
 // Analytics tab — Win Rate + Recommendations
-const state = { sort: 'score', dir: 'desc', verdict: 'all', funnel: '', recAction: 'all', recFunnel: '' };
+const state = { sort: 'score', dir: 'desc', verdict: 'all', funnel: '', recAction: 'all', recFunnel: '', iterUrgency: 'all', iterWeakness: '' };
 let data = null;     // win-rate response
 let recData = null;  // recommendations response
+let iterData = null; // iteration priorities response
 
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -35,9 +36,10 @@ async function loadAll() {
 
   document.getElementById('status').textContent = 'Loading...';
   try {
-    [data, recData] = await Promise.all([
+    [data, recData, iterData] = await Promise.all([
       api.get('/api/metrics/win-rate?' + qs(params)),
       api.get('/api/metrics/recommendations?' + qs(params)),
+      api.get('/api/metrics/iterations?' + qs(params)),
     ]);
   } catch (e) {
     document.getElementById('status').textContent = 'Error: ' + e.message;
@@ -47,6 +49,7 @@ async function loadAll() {
   const hasData = data.creatives.length > 0;
   document.getElementById('empty').style.display = hasData ? 'none' : '';
   document.getElementById('recs-section').style.display = hasData ? '' : 'none';
+  document.getElementById('iter-section').style.display = hasData ? '' : 'none';
 
   if (!hasData) {
     document.getElementById('kpis').innerHTML = '';
@@ -63,6 +66,9 @@ async function loadAll() {
   renderRecKpis(recData.summary);
   populateRecFunnelFilter(recData.creatives);
   renderRecCards();
+  renderIterKpis(iterData.summary);
+  populateIterWeaknessFilter(iterData.priorities);
+  renderIterCards();
   document.getElementById('status').textContent =
     data.creatives.length + ' creatives analyzed';
 }
@@ -333,6 +339,150 @@ document.querySelectorAll('#rec-action-seg .seg-btn').forEach(btn => {
 document.getElementById('rec-funnel-filter').addEventListener('change', e => {
   state.recFunnel = e.target.value;
   renderRecCards();
+});
+
+// ── Iteration Priority KPIs ──
+
+function renderIterKpis(s) {
+  const tiles = [
+    ['Creatives Scored', fmt.num(s.total)],
+    ['At Risk (50+)', `<span class="bad">${fmt.num(s.atRiskCount)}</span>`],
+    ['At-Risk Spend', `<span class="bad">${fmt.money(s.atRiskSpend)}</span>`],
+    ['Avg Priority', s.avgPriority >= 50
+      ? `<span class="bad">${s.avgPriority}</span>`
+      : s.avgPriority >= 20
+        ? `<span style="color:#facc15">${s.avgPriority}</span>`
+        : `<span class="good">${s.avgPriority}</span>`
+    ],
+    ['Total Spend', fmt.money(s.totalSpend)],
+    ['Spend Floor', fmt.money(s.spendFloor)],
+  ];
+  document.getElementById('iter-kpis').innerHTML = tiles
+    .map(([l, v]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div></div>`)
+    .join('');
+}
+
+// ── Iteration weakness filter ──
+
+function populateIterWeaknessFilter(priorities) {
+  const dims = [...new Set(priorities.filter(p => p.primaryWeakness).map(p => p.primaryWeakness.dimension))];
+  const sel = document.getElementById('iter-weakness-filter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All weaknesses</option>' +
+    dims.map(d => `<option value="${d}">${d.charAt(0).toUpperCase() + d.slice(1)}</option>`).join('');
+  sel.value = current;
+}
+
+// ── Iteration cards ──
+
+function urgencyTier(p) {
+  if (p >= 50) return 'high';
+  if (p >= 20) return 'med';
+  return 'low';
+}
+
+function fmtMetricVal(metric, val) {
+  switch (metric) {
+    case 'CTR': return fmt.pct(val);
+    case 'CPC': case 'CPM': case 'CPA': return fmt.cents(val);
+    case 'ROAS': return fmt.ratio(val);
+    default: return String(val);
+  }
+}
+
+function fmtTarget(metric, val) {
+  switch (metric) {
+    case 'CTR': return fmt.pct(val);
+    case 'CPC': case 'CPM': case 'CPA': return fmt.cents(val);
+    case 'ROAS': return fmt.ratio(val);
+    default: return String(val);
+  }
+}
+
+function renderIterCards() {
+  if (!iterData) return;
+  let items = iterData.priorities;
+
+  // Filter by urgency tier.
+  if (state.iterUrgency === 'high') items = items.filter(p => p.priority >= 50);
+  else if (state.iterUrgency === 'med') items = items.filter(p => p.priority >= 20 && p.priority < 50);
+  else if (state.iterUrgency === 'low') items = items.filter(p => p.priority < 20);
+
+  // Filter by weakness dimension.
+  if (state.iterWeakness) items = items.filter(p => p.primaryWeakness && p.primaryWeakness.dimension === state.iterWeakness);
+
+  const el = document.getElementById('iter-cards');
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:32px">No matching priorities.</div>';
+    return;
+  }
+
+  el.innerHTML = items.map(p => {
+    const tier = urgencyTier(p.priority);
+    const thumbHtml = p.thumbnail_url
+      ? `<img class="rec-thumb" src="${p.thumbnail_url}" alt="" onerror="this.style.visibility='hidden'">`
+      : `<div class="rec-thumb"></div>`;
+
+    const w = p.primaryWeakness;
+    const weaknessHtml = w
+      ? `<div class="iter-weakness">
+          <span class="iter-weakness-badge">${escapeHtml(w.dimension)}</span>
+          <span class="iter-weakness-detail">${w.metric}: ${fmtMetricVal(w.metric, w.actual)} (target ${fmtTarget(w.metric, w.target)})</span>
+        </div>`
+      : '<div class="iter-weakness"><span class="muted small">No clear weakness</span></div>';
+
+    return `
+      <div class="iter-card">
+        <div class="iter-head">
+          <div class="iter-score iter-score-${tier}">${p.priority}</div>
+          <div class="iter-info">
+            <div class="iter-name"><a href="/creative.html?id=${p.id}">${escapeHtml(p.name)}</a></div>
+            <div class="iter-meta">
+              <span class="chip">${p.funnel}</span>
+              <span>${p.format}${p.asset_type ? ' / ' + p.asset_type.replace(/_/g, ' ') : ''}</span>
+            </div>
+          </div>
+          ${thumbHtml}
+        </div>
+        ${weaknessHtml}
+        <div class="iter-bar-row">
+          <span style="width:65px">Weakness</span>
+          <div class="iter-bar"><div class="iter-bar-fill iter-bar-fill-weakness" style="width:${p.weaknessScore}%"></div></div>
+          <span>${p.weaknessScore}%</span>
+        </div>
+        <div class="iter-bar-row">
+          <span style="width:65px">Spend wt.</span>
+          <div class="iter-bar"><div class="iter-bar-fill iter-bar-fill-spend" style="width:${p.spendWeight}%"></div></div>
+          <span>${p.spendWeight}%</span>
+        </div>
+        <div class="iter-suggestion">
+          <div class="iter-suggestion-label">Next test</div>
+          ${escapeHtml(p.nextTest)}
+        </div>
+        <div class="iter-metrics">
+          <span>Spend: <strong>${fmt.money(p.spend)}</strong></span>
+          <span>ROAS: <strong>${fmt.ratio(p.roas)}</strong></span>
+          <span>CTR: <strong>${fmt.pct(p.ctr)}</strong></span>
+          <span>CPA: <strong>${fmt.cents(p.cpa)}</strong></span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Iteration events ──
+
+document.querySelectorAll('#iter-urgency-seg .seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#iter-urgency-seg .seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.iterUrgency = btn.dataset.u;
+    renderIterCards();
+  });
+});
+
+document.getElementById('iter-weakness-filter').addEventListener('change', e => {
+  state.iterWeakness = e.target.value;
+  renderIterCards();
 });
 
 // Init: load date range then data.

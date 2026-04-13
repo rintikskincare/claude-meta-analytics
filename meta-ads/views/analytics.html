@@ -89,6 +89,30 @@
       <div id="rec-cards" class="rec-grid"></div>
     </div>
 
+    <!-- ── Iteration Priorities ── -->
+    <div id="iter-section">
+      <div class="section-title" style="margin-top:40px">
+        Iteration Priorities
+        <span class="muted small" style="text-transform:none;letter-spacing:0"> — ranked by weakness severity x spend impact</span>
+      </div>
+
+      <div class="kpi-grid" id="iter-kpis"></div>
+
+      <div id="iter-filter-bar" class="controls-row" style="margin-bottom:12px">
+        <div class="seg" id="iter-urgency-seg">
+          <button class="seg-btn active" data-u="all">All</button>
+          <button class="seg-btn" data-u="high">High (50+)</button>
+          <button class="seg-btn" data-u="med">Medium (20-49)</button>
+          <button class="seg-btn" data-u="low">Low (&lt;20)</button>
+        </div>
+        <select id="iter-weakness-filter" class="ctl" style="margin-left:8px">
+          <option value="">All weaknesses</option>
+        </select>
+      </div>
+
+      <div id="iter-cards" class="iter-grid"></div>
+    </div>
+
     <div id="empty" class="empty-state" style="display:none">
       <div class="empty-icon">&#128200;</div>
       <div class="empty-title">No delivery data</div>
