@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reports — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Reports</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html">Analytics</a>
+      <a href="/compare.html">Compare</a>
+      <a href="/reports.html" class="active">Reports</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <div>
+        <div style="font-size:18px;font-weight:600">Snapshot Reports</div>
+        <div style="color:var(--muted);font-size:12px;margin-top:2px">
+          Point-in-time performance snapshots with KPIs and top/bottom performers.
+        </div>
+      </div>
+      <span style="flex:1"></span>
+      <button id="gen-btn" class="primary">+ Generate Report</button>
+    </div>
+
+    <!-- Saved reports list -->
+    <table id="tbl" style="display:none">
+      <thead>
+        <tr>
+          <th>Report</th>
+          <th>Account</th>
+          <th>Window</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div id="empty" class="empty-state" style="display:none">
+      <div class="empty-icon">&#128203;</div>
+      <div class="empty-title">No reports yet</div>
+      <div class="empty-sub">Generate your first snapshot report to capture performance at a point in time.</div>
+      <button id="gen-empty-btn" class="primary">+ Generate Report</button>
+    </div>
+
+    <!-- Report detail panel (shown when viewing a report) -->
+    <div id="detail" style="display:none">
+      <div class="controls-row" style="margin-bottom:16px">
+        <button id="back-btn" class="ctl-btn">&larr; Back to list</button>
+        <span style="flex:1"></span>
+        <span id="detail-meta" class="muted small"></span>
+      </div>
+
+      <div id="detail-window" class="card" style="margin-bottom:16px"></div>
+      <div class="kpi-grid" id="detail-kpis"></div>
+
+      <div class="layout-2">
+        <div>
+          <div class="section-title">Top Performers</div>
+          <table id="top-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Creative</th>
+                <th class="num">Spend</th>
+                <th class="num">Revenue</th>
+                <th class="num">ROAS</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="section-title">Bottom Performers</div>
+          <table id="bottom-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Creative</th>
+                <th class="num">Spend</th>
+                <th class="num">Revenue</th>
+                <th class="num">ROAS</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Generate report modal -->
+  <div id="modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-head">
+        <div style="font-size:16px;font-weight:600">Generate Snapshot Report</div>
+        <button class="icon-btn" id="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <form id="gen-form" class="modal-body">
+        <label class="field">
+          <span>Account</span>
+          <select name="account_id" id="account-sel">
+            <option value="">All accounts</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Report name <small>(optional — auto-generated if blank)</small></span>
+          <input name="name" placeholder="e.g. Q1 Performance Snapshot">
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>From</span>
+            <input type="date" name="from" id="gen-from">
+          </label>
+          <label class="field">
+            <span>To</span>
+            <input type="date" name="to" id="gen-to">
+          </label>
+        </div>
+        <label class="field">
+          <span>Top/Bottom performers count</span>
+          <input type="number" name="top_n" value="5" min="1" max="20" style="width:80px">
+        </label>
+        <div id="gen-err" class="form-err" style="display:none"></div>
+        <div class="modal-actions">
+          <button type="button" id="cancel-btn">Cancel</button>
+          <button type="submit" class="primary" id="submit-btn">Generate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm delete modal -->
+  <div id="confirm" class="modal-overlay" style="display:none">
+    <div class="modal" style="max-width:400px">
+      <div class="modal-head">
+        <div style="font-size:16px;font-weight:600">Delete report?</div>
+      </div>
+      <div class="modal-body">
+        <p style="margin:0 0 16px;color:var(--muted);font-size:13px">
+          This removes <strong id="confirm-name"></strong>. This cannot be undone.
+        </p>
+        <div class="modal-actions">
+          <button type="button" id="confirm-cancel">Cancel</button>
+          <button type="button" id="confirm-ok" class="danger">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/reports.js"></script>
+</body>
+</html>

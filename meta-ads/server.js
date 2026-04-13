@@ -10,6 +10,7 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'views', 'index.htm
 app.get('/accounts.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'accounts.html')));
 app.get('/creatives.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'creatives.html')));
 app.get('/analytics.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'analytics.html')));
+app.get('/reports.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'reports.html')));
 
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/accounts', require('./routes/accounts'));
@@ -17,6 +18,7 @@ app.use('/api/sync', require('./routes/sync'));
 app.use('/api/ads', require('./routes/ads'));
 app.use('/api/creatives', require('./routes/creatives'));
 app.use('/api/metrics', require('./routes/metrics'));
+app.use('/api/reports', require('./routes/reports'));
 
 app.use((err, req, res, _next) => {
   console.error(err);

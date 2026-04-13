@@ -500,3 +500,15 @@ button.danger:hover { opacity: 0.9; }
 .iter-metrics { display: flex; gap: 16px; font-size: 12px; }
 .iter-metrics span { color: var(--muted); }
 .iter-metrics strong { color: var(--text); }
+
+/* ── Reports ─────────────────────────────────── */
+.report-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  background: var(--panel-2); color: var(--muted);
+}
+.report-badge.badge-ok  { background: rgba(74,222,128,0.15); color: var(--good); }
+.report-badge.badge-err { background: rgba(248,113,113,0.15); color: var(--bad); }
+.report-badge.badge-run { background: rgba(79,140,255,0.15); color: var(--accent); }
+.report-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+.report-link:hover { text-decoration: underline; }
