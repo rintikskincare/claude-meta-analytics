@@ -630,3 +630,49 @@ button.danger:hover { opacity: 0.9; }
 }
 .settings-action:hover { opacity: 0.9; }
 .settings-action:disabled { opacity: 0.5; cursor: wait; }
+
+/* ── Onboarding banner ─────────────────────────── */
+.onboard {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 20px 24px; margin-bottom: 20px;
+  border-left: 3px solid var(--accent);
+}
+.onboard-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.onboard-title { font-size: 16px; font-weight: 600; }
+
+.onboard-steps { display: flex; gap: 12px; margin-bottom: 16px; }
+.onboard-step {
+  flex: 1; display: flex; gap: 12px; align-items: flex-start;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; text-decoration: none; color: var(--text); transition: border-color 0.15s;
+}
+.onboard-step:hover { border-color: var(--accent); }
+.onboard-step-done { opacity: 0.55; }
+.onboard-step-done:hover { opacity: 0.7; }
+
+.onboard-check {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border); display: flex; align-items: center;
+  justify-content: center; font-size: 14px; font-weight: 700; color: transparent;
+  margin-top: 1px;
+}
+.onboard-check-done {
+  background: var(--good); border-color: var(--good); color: white;
+}
+
+.onboard-step-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.onboard-step-sub { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.onboard-progress { display: flex; align-items: center; gap: 10px; }
+.onboard-bar {
+  flex: 1; height: 4px; background: var(--panel-2); border-radius: 2px; overflow: hidden;
+}
+.onboard-bar-fill {
+  height: 100%; background: var(--good); border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.onboard-pct { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+@media (max-width: 700px) {
+  .onboard-steps { flex-direction: column; }
+}

@@ -1,8 +1,26 @@
 const express = require('express');
+const db = require('../db');
 const settings = require('../services/settings');
 const meta = require('../services/meta');
 
 const router = express.Router();
+
+// Onboarding checklist: returns completion state of each setup step.
+router.get('/onboarding', (req, res) => {
+  const metaToken = !!settings.getSecret('meta_access_token');
+  const geminiKey = !!settings.getSecret('gemini_api_key');
+  const accountCount = db.prepare('SELECT COUNT(*) cnt FROM ad_accounts').get().cnt;
+  const complete = metaToken && geminiKey && accountCount > 0;
+  res.json({
+    steps: {
+      meta_token: metaToken,
+      gemini_key: geminiKey,
+      ad_account: accountCount > 0,
+    },
+    account_count: accountCount,
+    complete,
+  });
+});
 
 // Test the stored Meta token (or one provided in the body for pre-save checks).
 // Never echoes the token back in the response.

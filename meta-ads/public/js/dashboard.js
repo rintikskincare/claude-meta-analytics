@@ -107,7 +107,49 @@ document.getElementById('reset').addEventListener('click', async () => {
   await loadAll();
 });
 
+/* ── Onboarding banner ───────────────────────────────── */
+async function checkOnboarding() {
+  // Respect explicit dismissal for this session
+  if (sessionStorage.getItem('onboard_dismissed')) return;
+  try {
+    const ob = await api.get('/api/settings/onboarding');
+    if (ob.complete) return; // all done — no banner
+
+    const el = document.getElementById('onboarding');
+    el.style.display = 'block';
+
+    const steps = ob.steps;
+    const done = [steps.meta_token, steps.gemini_key, steps.ad_account].filter(Boolean).length;
+
+    // Checkmarks
+    setCheck('ob-meta-check',    steps.meta_token);
+    setCheck('ob-gemini-check',  steps.gemini_key);
+    setCheck('ob-account-check', steps.ad_account);
+
+    // Completed step styling
+    if (steps.meta_token) document.getElementById('ob-meta').classList.add('onboard-step-done');
+    if (steps.gemini_key) document.getElementById('ob-gemini').classList.add('onboard-step-done');
+    if (steps.ad_account) document.getElementById('ob-account').classList.add('onboard-step-done');
+
+    // Progress
+    document.getElementById('ob-bar').style.width = ((done / 3) * 100) + '%';
+    document.getElementById('ob-pct').textContent = done + ' of 3';
+  } catch (_) { /* settings API not available — skip banner */ }
+}
+
+function setCheck(id, done) {
+  const el = document.getElementById(id);
+  el.textContent = done ? '\u2713' : '';
+  el.classList.toggle('onboard-check-done', done);
+}
+
+document.getElementById('onboard-dismiss').addEventListener('click', () => {
+  document.getElementById('onboarding').style.display = 'none';
+  sessionStorage.setItem('onboard_dismissed', '1');
+});
+
 (async function init() {
+  checkOnboarding();
   await loadDateRange();
   await loadTags();
   await loadAll();
