@@ -586,3 +586,47 @@ button.danger:hover { opacity: 0.9; }
 .rpt-tl-badge { flex-shrink: 0; }
 
 @media (max-width: 600px) { .rpt-kpi-grid { grid-template-columns: 1fr 1fr; } }
+
+/* ── Settings ─────────────────────────────────── */
+.settings-page { max-width: 600px; }
+.settings-section {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  padding: 24px; margin-bottom: 20px;
+}
+.settings-section-head { margin-bottom: 20px; }
+.settings-section-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.settings-section-sub { font-size: 13px; color: var(--muted); line-height: 1.55; }
+.settings-section-sub a { color: var(--accent); text-decoration: none; }
+.settings-section-sub a:hover { text-decoration: underline; }
+
+.settings-field { margin-bottom: 16px; }
+.settings-field > label {
+  display: block; font-size: 12px; font-weight: 500; color: var(--text);
+  margin-bottom: 5px;
+}
+.settings-input {
+  width: 100%; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 9px 11px; font-size: 13px; font-family: inherit;
+}
+.settings-input:focus { outline: none; border-color: var(--accent); }
+.settings-input-row { display: flex; gap: 6px; }
+.settings-input-row .settings-input { flex: 1; }
+.settings-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+.settings-status {
+  font-size: 12px; padding: 10px 12px; border-radius: 6px; margin-bottom: 12px; line-height: 1.5;
+}
+.settings-status-ok {
+  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.25); color: var(--good);
+}
+.settings-status-err {
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: var(--bad);
+}
+
+.settings-action {
+  background: var(--accent); border: 1px solid var(--accent); color: white;
+  padding: 9px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+}
+.settings-action:hover { opacity: 0.9; }
+.settings-action:disabled { opacity: 0.5; cursor: wait; }

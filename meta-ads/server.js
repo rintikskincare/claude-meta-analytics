@@ -11,6 +11,7 @@ app.get('/accounts.html', (req, res) => res.sendFile(path.join(__dirname, 'views
 app.get('/creatives.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'creatives.html')));
 app.get('/analytics.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'analytics.html')));
 app.get('/reports.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'reports.html')));
+app.get('/settings.html', (req, res) => res.sendFile(path.join(__dirname, 'views', 'settings.html')));
 
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/accounts', require('./routes/accounts'));
