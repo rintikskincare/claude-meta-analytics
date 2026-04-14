@@ -25,15 +25,36 @@ function renderHeader(c, tags) {
       </div>
     </div>`;
   document.getElementById('newtag').addEventListener('keydown', async e => {
-    if (e.key === 'Enter' && e.target.value.trim()) {
-      await api.post(`/api/creatives/${id}/tags`, { name: e.target.value.trim() });
-      load();
+    if (e.key !== 'Enter') return;
+    const name = e.target.value.trim();
+    if (!name) return;
+    e.target.disabled = true;
+    try {
+      await api.post(`/api/creatives/${id}/tags`, { name });
+      UI.toast(`Tag "${name}" added`);
+      await load();
+    } catch (err) {
+      UI.toast('Could not add tag: ' + err.message, 'error');
+      e.target.disabled = false;
     }
   });
   document.querySelectorAll('.tag.removable').forEach(el => {
     el.addEventListener('click', async () => {
-      await api.del(`/api/creatives/${id}/tags/${encodeURIComponent(el.dataset.tag)}`);
-      load();
+      const tag = el.dataset.tag;
+      const ok = await UI.confirmDialog({
+        title: 'Remove this tag?',
+        message: `Remove "${tag}" from this creative?`,
+        confirmLabel: 'Remove tag',
+        cancelLabel: 'Keep',
+      });
+      if (!ok) return;
+      try {
+        await api.del(`/api/creatives/${id}/tags/${encodeURIComponent(tag)}`);
+        UI.toast(`Tag "${tag}" removed`);
+        await load();
+      } catch (err) {
+        UI.toast('Could not remove tag: ' + err.message, 'error');
+      }
     });
   });
 }

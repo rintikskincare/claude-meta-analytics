@@ -257,6 +257,13 @@ genForm.addEventListener('submit', async e => {
   e.preventDefault();
   genErr.style.display = 'none';
   const fd = Object.fromEntries(new FormData(genForm).entries());
+  // Client-side date validation — server also validates but this gives
+  // instant feedback rather than making the user wait for a round-trip.
+  if (fd.from && fd.to && fd.from > fd.to) {
+    genErr.textContent = '"From" date must be on or before "To" date.';
+    genErr.style.display = 'block';
+    return;
+  }
   const body = {
     account_id: fd.account_id || null,
     name:       fd.name || undefined,

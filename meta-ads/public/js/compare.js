@@ -11,10 +11,16 @@ async function loadPicker() {
 document.getElementById('go').addEventListener('click', async () => {
   const sel = document.getElementById('picker');
   const ids = Array.from(sel.selectedOptions).map(o => o.value);
-  if (ids.length < 2) return alert('Pick at least 2 creatives.');
-  if (ids.length > 4) return alert('Pick at most 4 creatives.');
-  const rows = await api.get('/api/creatives/compare/many?ids=' + ids.join(','));
-  render(rows);
+  if (ids.length < 2) { UI.toast('Pick at least 2 creatives.', 'error'); return; }
+  if (ids.length > 4) { UI.toast('Pick at most 4 creatives.', 'error'); return; }
+  const btn = document.getElementById('go');
+  const done = UI.setBusy(btn, 'Comparing…');
+  try {
+    const rows = await api.get('/api/creatives/compare/many?ids=' + ids.join(','));
+    render(rows);
+  } catch (e) {
+    UI.toast('Compare failed: ' + e.message, 'error');
+  } finally { done(); }
 });
 
 function render(rows) {

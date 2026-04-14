@@ -87,24 +87,48 @@ document.getElementById('apply').addEventListener('click', loadAll);
 
 document.getElementById('upload').addEventListener('click', async () => {
   const f = document.getElementById('csv').files[0];
-  if (!f) return alert('Choose a CSV first.');
+  if (!f) { UI.toast('Choose a CSV first.', 'error'); return; }
+  const btn = document.getElementById('upload');
+  const done = UI.setBusy(btn, 'Importing…');
   try {
     const r = await api.upload('/api/ads/import', f);
-    alert(`Imported ${r.rowsInserted} rows.`);
+    UI.toast(`Imported ${r.rowsInserted} rows`);
     await loadDateRange(); await loadTags(); await loadAll();
-  } catch (e) { alert('Import failed: ' + e.message); }
+  } catch (e) {
+    UI.toast('Import failed: ' + e.message, 'error');
+  } finally { done(); }
 });
 
 document.getElementById('seed').addEventListener('click', async () => {
-  const r = await api.post('/api/ads/seed');
-  alert(`Seeded ${r.rowsInserted} insight rows across ${r.creatives} creatives.`);
-  await loadDateRange(); await loadTags(); await loadAll();
+  const btn = document.getElementById('seed');
+  const done = UI.setBusy(btn, 'Loading…');
+  try {
+    const r = await api.post('/api/ads/seed');
+    UI.toast(`Loaded ${r.rowsInserted} rows across ${r.creatives} creatives`);
+    await loadDateRange(); await loadTags(); await loadAll();
+  } catch (e) {
+    UI.toast('Seed failed: ' + e.message, 'error');
+  } finally { done(); }
 });
 
 document.getElementById('reset').addEventListener('click', async () => {
-  if (!confirm('Delete all data?')) return;
-  await api.post('/api/ads/reset');
-  await loadAll();
+  const ok = await UI.confirmDialog({
+    title: 'Reset all data?',
+    message: 'This permanently deletes all imported ads, creatives, and insights. Settings and connected accounts are kept. This cannot be undone.',
+    confirmLabel: 'Reset data',
+    cancelLabel: 'Keep data',
+    danger: true,
+  });
+  if (!ok) return;
+  const btn = document.getElementById('reset');
+  const done = UI.setBusy(btn, 'Resetting…');
+  try {
+    await api.post('/api/ads/reset');
+    UI.toast('Data reset');
+    await loadAll();
+  } catch (e) {
+    UI.toast('Reset failed: ' + e.message, 'error');
+  } finally { done(); }
 });
 
 /* ── Onboarding banner ───────────────────────────────── */

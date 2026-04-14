@@ -143,18 +143,5 @@ document.getElementById('prefs-save').addEventListener('click', async () => {
   }
 });
 
-/* ── api.put helper (not in api.js) ─────────────────── */
-if (!api.put) {
-  api.put = async function(path, body) {
-    const r = await fetch(path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    return r.json();
-  };
-}
-
 /* ── Init ────────────────────────────────────────────── */
 load();

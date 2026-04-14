@@ -51,22 +51,21 @@ async function load() {
     </tr>`).join('');
 
   tbody.querySelectorAll('.pill').forEach(btn =>
-    btn.addEventListener('click', () => toggleActive(btn.dataset.id, btn.dataset.active !== 'true')));
+    btn.addEventListener('click', () => toggleActive(btn, btn.dataset.id, btn.dataset.active !== 'true')));
   tbody.querySelectorAll('[data-del]').forEach(btn =>
     btn.addEventListener('click', () => askDelete(btn.dataset.del, btn.dataset.name)));
 }
 
-async function toggleActive(id, next) {
+async function toggleActive(btn, id, next) {
+  if (btn.disabled) return;
+  btn.disabled = true;
   try {
-    await fetch(`/api/accounts/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: next }),
-    }).then(r => { if (!r.ok) throw new Error('Update failed'); });
+    await api.put(`/api/accounts/${id}`, { active: next });
     showToast(next ? 'Account activated' : 'Account paused');
-    load();
+    await load();
   } catch (e) {
     showToast(e.message, 'error');
+    btn.disabled = false;
   }
 }
 

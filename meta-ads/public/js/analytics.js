@@ -34,6 +34,8 @@ async function loadAll() {
   const thresholdInput = document.getElementById('threshold').value;
   if (thresholdInput) params.threshold = thresholdInput;
 
+  const applyBtn = document.getElementById('apply');
+  const done = UI.setBusy(applyBtn, 'Loading…');
   document.getElementById('status').textContent = 'Loading...';
   try {
     [data, recData, iterData] = await Promise.all([
@@ -43,8 +45,17 @@ async function loadAll() {
     ]);
   } catch (e) {
     document.getElementById('status').textContent = 'Error: ' + e.message;
+    UI.toast('Could not load analytics: ' + e.message, 'error');
+    // Clear any partial UI so the user isn't staring at a stale state.
+    document.getElementById('kpis').innerHTML = '';
+    document.getElementById('funnel-cards').innerHTML = '';
+    document.querySelector('#scoreboard tbody').innerHTML = '';
+    document.getElementById('recs-section').style.display = 'none';
+    document.getElementById('iter-section').style.display = 'none';
+    done();
     return;
   }
+  done();
 
   const hasData = data.creatives.length > 0;
   document.getElementById('empty').style.display = hasData ? 'none' : '';

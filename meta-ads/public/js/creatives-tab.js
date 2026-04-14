@@ -471,7 +471,19 @@ $('#dm-analyze').addEventListener('click', async () => {
 });
 
 function pollAnalysis(id, attempts = 0) {
-  if (attempts > 10 || dmCurrentId !== id) return;
+  // Give up after ~10 seconds so the UI doesn't hang forever if the
+  // analysis job silently stalls or the poll endpoint is unreachable.
+  if (dmCurrentId !== id) return;
+  if (attempts > 10) {
+    if (dmCurrentId === id) {
+      const btn = $('#dm-analyze');
+      btn.disabled = false;
+      btn.textContent = 'Retry analysis';
+      btn.className = 'ctl-btn ctl-btn-primary';
+    }
+    showToast('Analysis is taking longer than expected. Try again in a moment.', 'error');
+    return;
+  }
   setTimeout(async () => {
     try {
       const data = await api.get(`/api/creatives/${id}`);
@@ -480,7 +492,7 @@ function pollAnalysis(id, attempts = 0) {
         fetchCreatives(); // refresh list behind modal
         return;
       }
-    } catch { /* ignore */ }
+    } catch { /* transient network error — keep polling */ }
     pollAnalysis(id, attempts + 1);
   }, 1000);
 }

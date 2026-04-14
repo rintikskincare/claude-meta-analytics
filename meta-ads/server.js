@@ -26,9 +26,10 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: err.message || 'internal error' });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Meta Ads Analytics running on http://localhost:${PORT}`));
+  app.listen(PORT, HOST, () => console.log(`Meta Ads Analytics running on http://${HOST}:${PORT}`));
 }
 
 module.exports = app;

@@ -3,3 +3,6 @@ data/*.db
 data/*.db-*
 *.log
 .DS_Store
+dist/
+.env
+.env.*

@@ -3,5 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export NODE_ENV=development
-export PORT=${PORT:-3001}
+export PORT=${PORT:-5000}
 exec node --watch server.js
