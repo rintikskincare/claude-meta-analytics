@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Compare — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Compare Creatives</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html">Analytics</a>
+      <a href="/compare.html" class="active">Compare</a>
+      <a href="/reports.html">Reports</a>
+      <a href="/settings.html">Settings</a>
+    </nav>
+  </header>
+  <main>
+    <div class="toolbar">
+      <select id="picker" multiple size="8" style="min-width:300px"></select>
+      <button id="go" class="primary">Compare</button>
+      <span style="color:var(--muted);font-size:12px">Cmd/Ctrl-click to select 2–4 creatives</span>
+    </div>
+    <div id="result"></div>
+  </main>
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/compare.js"></script>
+</body>
+</html>

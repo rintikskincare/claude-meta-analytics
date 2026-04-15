@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Meta Ads Creative Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Creative Analytics</h1>
+    <nav>
+      <a href="/" class="active">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html">Analytics</a>
+      <a href="/compare.html">Compare</a>
+      <a href="/reports.html">Reports</a>
+      <a href="/settings.html">Settings</a>
+    </nav>
+  </header>
+  <main>
+    <!-- Onboarding banner (auto-hidden when all steps complete) -->
+    <div id="onboarding" class="onboard" style="display:none">
+      <div class="onboard-head">
+        <div class="onboard-title">Get started in 3 steps</div>
+        <button id="onboard-dismiss" class="icon-btn" title="Dismiss">&times;</button>
+      </div>
+      <div class="onboard-steps">
+        <a href="/settings.html" class="onboard-step" id="ob-meta">
+          <div class="onboard-check" id="ob-meta-check"></div>
+          <div class="onboard-step-body">
+            <div class="onboard-step-title">Connect Meta</div>
+            <div class="onboard-step-sub">Paste your access token so we can pull ad data.</div>
+          </div>
+        </a>
+        <a href="/settings.html" class="onboard-step" id="ob-gemini">
+          <div class="onboard-check" id="ob-gemini-check"></div>
+          <div class="onboard-step-body">
+            <div class="onboard-step-title">Add Gemini key</div>
+            <div class="onboard-step-sub">Enable AI-powered creative tagging and analysis.</div>
+          </div>
+        </a>
+        <a href="/accounts.html" class="onboard-step" id="ob-account">
+          <div class="onboard-check" id="ob-account-check"></div>
+          <div class="onboard-step-body">
+            <div class="onboard-step-title">Add an ad account</div>
+            <div class="onboard-step-sub">Your first sync runs automatically after adding an account.</div>
+          </div>
+        </a>
+      </div>
+      <div class="onboard-progress">
+        <div class="onboard-bar"><div class="onboard-bar-fill" id="ob-bar"></div></div>
+        <span class="onboard-pct" id="ob-pct">0 of 3</span>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <label>From <input type="date" id="from"></label>
+      <label>To <input type="date" id="to"></label>
+      <select id="tag"><option value="">All tags</option></select>
+      <button id="apply" class="primary">Apply</button>
+      <span style="flex:1"></span>
+      <input type="file" id="csv" accept=".csv">
+      <button id="upload">Import CSV</button>
+      <button id="seed">Load Demo Data</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <div id="alerts"></div>
+
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="section-title">Top creatives</div>
+    <table id="leaderboard">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Creative</th>
+          <th data-sort="spend" class="num">Spend</th>
+          <th data-sort="revenue" class="num">Revenue</th>
+          <th data-sort="roas" class="num">ROAS</th>
+          <th data-sort="cpa" class="num">CPA</th>
+          <th data-sort="ctr" class="num">CTR</th>
+          <th data-sort="purchases" class="num">Purchases</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Settings</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html">Analytics</a>
+      <a href="/compare.html">Compare</a>
+      <a href="/reports.html">Reports</a>
+      <a href="/settings.html" class="active">Settings</a>
+    </nav>
+  </header>
+  <main>
+    <div class="settings-page">
+
+      <!-- ── Meta Connection ── -->
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Meta Connection</div>
+          <div class="settings-section-sub">
+            Paste your Meta (Facebook) access token to sync ad accounts and creative performance data.
+            You can generate a token in the
+            <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Graph API Explorer</a>.
+          </div>
+        </div>
+        <div class="settings-field">
+          <label for="meta-token">Access Token</label>
+          <div class="settings-input-row">
+            <input type="password" id="meta-token" class="settings-input" placeholder="Paste your Meta access token">
+            <button id="meta-toggle" class="ctl-btn" type="button" title="Show/hide">&#128065;</button>
+          </div>
+          <div class="settings-hint">Your token is stored locally and never sent to third parties.</div>
+        </div>
+        <div id="meta-status" class="settings-status" style="display:none"></div>
+        <button id="meta-save" class="primary settings-action">Save &amp; Connect</button>
+      </section>
+
+      <!-- ── Gemini AI ── -->
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Gemini AI Analysis</div>
+          <div class="settings-section-sub">
+            Add a Google Gemini API key to enable automatic creative tagging and analysis.
+            Creatives will be analyzed after each sync.
+            Get a key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.
+          </div>
+        </div>
+        <div class="settings-field">
+          <label for="gemini-key">API Key</label>
+          <div class="settings-input-row">
+            <input type="password" id="gemini-key" class="settings-input" placeholder="Paste your Gemini API key">
+            <button id="gemini-toggle" class="ctl-btn" type="button" title="Show/hide">&#128065;</button>
+          </div>
+          <div class="settings-hint">Used for creative analysis only. Stored locally.</div>
+        </div>
+        <div id="gemini-status" class="settings-status" style="display:none"></div>
+        <button id="gemini-save" class="primary settings-action">Save Key</button>
+      </section>
+
+      <!-- ── Sync & Thresholds ── -->
+      <section class="settings-section">
+        <div class="settings-section-head">
+          <div class="settings-section-title">Sync &amp; Analysis Thresholds</div>
+          <div class="settings-section-sub">
+            Control how often data syncs from Meta, and tune the thresholds used by the Analytics tab
+            for scoring creatives and generating recommendations.
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <label for="sync-freq">Sync Frequency</label>
+          <select id="sync-freq" class="settings-input" style="width:auto">
+            <option value="off">Off — manual only</option>
+            <option value="hourly">Every hour</option>
+            <option value="daily">Once a day</option>
+            <option value="weekly">Once a week</option>
+          </select>
+          <div class="settings-hint">How often to pull the latest data from Meta. You can always sync manually from the Accounts page.</div>
+        </div>
+
+        <div class="settings-field">
+          <label for="date-range">Default Date Range (days)</label>
+          <input type="number" id="date-range" class="settings-input" style="width:100px" min="1" max="365">
+          <div class="settings-hint">The default lookback window for dashboards and reports (1–365 days).</div>
+        </div>
+
+        <div class="settings-field">
+          <label for="roas-threshold">Winner ROAS Threshold</label>
+          <input type="number" id="roas-threshold" class="settings-input" style="width:100px" min="0" step="0.1">
+          <div class="settings-hint">
+            Creatives with ROAS above this value are flagged as "winners" in analytics.
+            A higher number means only top performers qualify.
+          </div>
+        </div>
+
+        <div class="settings-field">
+          <label for="spend-threshold">Minimum Spend for Analysis ($)</label>
+          <input type="number" id="spend-threshold" class="settings-input" style="width:100px" min="0" step="1">
+          <div class="settings-hint">
+            Creatives that spent less than this amount are excluded from recommendations
+            and iteration priorities. Avoids noise from low-budget tests.
+          </div>
+        </div>
+
+        <div id="prefs-status" class="settings-status" style="display:none"></div>
+        <button id="prefs-save" class="primary settings-action">Save Preferences</button>
+      </section>
+
+    </div>
+  </main>
+
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/settings.js"></script>
+</body>
+</html>

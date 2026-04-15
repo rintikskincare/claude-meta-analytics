@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Creative — Meta Ads Analytics</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Meta Ads — Creative Detail</h1>
+    <nav>
+      <a href="/">Dashboard</a>
+      <a href="/accounts.html">Accounts</a>
+      <a href="/creatives.html">Creatives</a>
+      <a href="/analytics.html">Analytics</a>
+      <a href="/compare.html">Compare</a>
+      <a href="/reports.html">Reports</a>
+      <a href="/settings.html">Settings</a>
+    </nav>
+  </header>
+  <main>
+    <a href="/" style="color:var(--muted);text-decoration:none;font-size:12px">← Back</a>
+    <div id="header" style="display:flex;gap:20px;align-items:flex-start;margin:16px 0 24px"></div>
+    <div class="kpi-grid" id="kpis"></div>
+
+    <div class="card">
+      <h3>Trend (spend vs ROAS)</h3>
+      <canvas id="trend" height="80"></canvas>
+    </div>
+
+    <div class="section-title">Placements</div>
+    <table id="placements">
+      <thead><tr>
+        <th>Campaign</th><th>Adset</th>
+        <th class="num">Spend</th><th class="num">Revenue</th>
+        <th class="num">ROAS</th><th class="num">CPA</th><th class="num">CTR</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </main>
+  <script src="/js/api.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/creative.js"></script>
+</body>
+</html>
