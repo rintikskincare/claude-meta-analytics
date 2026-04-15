@@ -74,7 +74,12 @@ document.getElementById('meta-save').addEventListener('click', async () => {
     // Then test the connection
     const r = await api.post('/api/settings/test-meta', { token });
     if (r.ok) {
-      showStatus('meta-status', 'Connected! Found account: ' + (r.name || r.id || 'OK'), true);
+      const name = (r.user && r.user.name) || 'account';
+      const count = r.ad_accounts_count != null ? r.ad_accounts_count : 0;
+      const accountSummary = count === 0
+        ? `Connected as ${name}, but this user has no ad accounts. Make sure your Facebook user is an admin on at least one ad account in Business Settings.`
+        : `Connected as ${name} — found ${count} ad account${count === 1 ? '' : 's'}.`;
+      showStatus('meta-status', accountSummary, count > 0);
       document.getElementById('meta-token').value = '';
       showToast('Meta token saved and verified');
       load(); // refresh placeholder
@@ -82,7 +87,7 @@ document.getElementById('meta-save').addEventListener('click', async () => {
       showStatus('meta-status', 'Token saved but connection test failed: ' + (r.error || 'unknown error'), false);
     }
   } catch (e) {
-    showStatus('meta-status', 'Error: ' + e.message, false);
+    showStatus('meta-status', 'Could not connect to Meta: ' + e.message, false);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Save & Connect';
