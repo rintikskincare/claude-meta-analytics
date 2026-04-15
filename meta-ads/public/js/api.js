@@ -1,39 +1,60 @@
 // Tiny fetch wrapper for the JSON API.
+//
+// If any call returns 401 the session has expired (or the user was never
+// signed in) — stash the current URL so login.js can bounce the user back
+// after they authenticate, then redirect to the login page.
+function _handle401() {
+  if (window.location.pathname === '/login.html') return;
+  try {
+    sessionStorage.setItem('login_redirect',
+      window.location.pathname + window.location.search);
+  } catch { /* ignore storage errors */ }
+  window.location.replace('/login.html');
+}
+
+async function _parseError(r) {
+  try {
+    const body = await r.json();
+    return new Error(body.error || r.statusText);
+  } catch {
+    return new Error(r.statusText);
+  }
+}
+
+async function _check(r) {
+  if (r.status === 401) {
+    _handle401();
+    throw new Error('auth required');
+  }
+  if (!r.ok) throw await _parseError(r);
+  return r.json();
+}
+
 const api = {
   async get(path) {
-    const r = await fetch(path);
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    return r.json();
+    return _check(await fetch(path));
   },
   async post(path, body) {
-    const r = await fetch(path, {
+    return _check(await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    return r.json();
+    }));
   },
   async put(path, body) {
-    const r = await fetch(path, {
+    return _check(await fetch(path, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    return r.json();
+    }));
   },
   async del(path) {
-    const r = await fetch(path, { method: 'DELETE' });
-    if (!r.ok) throw new Error(r.statusText);
-    return r.json();
+    return _check(await fetch(path, { method: 'DELETE' }));
   },
   async upload(path, file) {
     const fd = new FormData();
     fd.append('file', file);
-    const r = await fetch(path, { method: 'POST', body: fd });
-    if (!r.ok) throw new Error((await r.json()).error || r.statusText);
-    return r.json();
+    return _check(await fetch(path, { method: 'POST', body: fd }));
   },
 };
 

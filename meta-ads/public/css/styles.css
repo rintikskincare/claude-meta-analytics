@@ -676,3 +676,88 @@ button.danger:hover { opacity: 0.9; }
 @media (max-width: 700px) {
   .onboard-steps { flex-direction: column; }
 }
+
+/* ── Login page ────────────────────────────────────── */
+.login-body {
+  background: var(--bg);
+  display: flex;
+  min-height: 100vh;
+  margin: 0;
+}
+.login-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 32px 28px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+}
+.login-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.login-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.login-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.login-err {
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.3);
+  color: var(--bad, #f87171);
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+.login-submit {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--accent);
+  color: white;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.login-submit:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+/* "Sign out" link injected by ui.js — push to the right of the nav. */
+header nav a[data-signout] {
+  margin-left: auto;
+  color: var(--muted);
+}
+header nav a[data-signout]:hover {
+  color: var(--text);
+}

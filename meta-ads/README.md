@@ -10,10 +10,20 @@ Stack: **Node.js + Express + SQLite (better-sqlite3) + vanilla HTML/CSS/JS**. No
 cd meta-ads
 npm install
 npm start
-# open http://localhost:3001
+# open http://localhost:5000
 ```
 
-Then click **Load Demo Data** in the top-right to populate ~30 days of synthetic data, or import your own CSV (see format below).
+Then click **Load Demo Data** on the Dashboard to populate ~30 days of synthetic data, or import your own CSV (see format below).
+
+### Password-protecting the app (recommended before hosting publicly)
+
+Set `APP_PASSWORD` in the environment and the app will require a password at `/login.html` before serving anything else. Unset it and auth is disabled (fine for local / LAN-only use).
+
+```bash
+APP_PASSWORD='choose-a-strong-password' npm start
+```
+
+On Render / Railway / Replit, set `APP_PASSWORD` as an env var in the dashboard. The session cookie is HMAC-signed with a secret auto-generated to `data/.session-secret` on first boot (gitignored, survives restarts).
 
 ## Features (v1)
 
@@ -104,6 +114,6 @@ meta-ads/
 ## Out of scope (v1)
 
 - Live Meta Graph API sync (planned: nightly poll → same `insights` table)
-- Auth / multi-tenant
+- Multi-user accounts (current auth is a single shared password)
 - Attribution modeling
 - Ad creation

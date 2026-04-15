@@ -50,6 +50,7 @@ zip -r "$OUT_PATH" . \
   -x "data/*.db-*" \
   -x "data/*.sqlite" \
   -x "data/*.sqlite-*" \
+  -x "data/.session-secret" \
   -x "*.log" \
   -x ".DS_Store" \
   -x "CLAUDE.md" \

@@ -126,4 +126,30 @@
 
   // Expose globals.
   window.UI = { toast, confirmDialog, setBusy, escHtml };
+
+  // ── Auth-aware header enhancement ───────────────────
+  // When APP_PASSWORD is configured on the server, inject a "Sign out"
+  // link at the end of the page's nav so users have a way to end the
+  // session. No-op on the login page or when auth is disabled.
+  if (!/\/login\.html$/.test(window.location.pathname)) {
+    fetch('/api/auth/status')
+      .then(r => (r.ok ? r.json() : null))
+      .then(s => {
+        if (!s || !s.authRequired || !s.authenticated) return;
+        const nav = document.querySelector('header nav');
+        if (!nav || nav.querySelector('[data-signout]')) return;
+        const a = document.createElement('a');
+        a.href = '#';
+        a.textContent = 'Sign out';
+        a.setAttribute('data-signout', '1');
+        a.style.marginLeft = 'auto';
+        a.addEventListener('click', async e => {
+          e.preventDefault();
+          try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+          window.location.replace('/login.html');
+        });
+        nav.appendChild(a);
+      })
+      .catch(() => { /* ignore — server might be older without /api/auth */ });
+  }
 })();
